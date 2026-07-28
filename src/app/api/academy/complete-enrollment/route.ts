@@ -21,9 +21,18 @@ export async function POST(req: NextRequest) {
   try {
     const body = schema.parse(await req.json());
     const normalizedEmail = body.email.trim().toLowerCase();
-    const { data: dup } = await admin.rpc("check_freight_email_registered", {
-      candidate: normalizedEmail,
-    });
+
+    const { data: dup, error: rpcErr } = await admin.rpc(
+      "check_freight_email_registered",
+      { candidate: normalizedEmail },
+    );
+    if (rpcErr) {
+      console.error("[complete-enrollment] rpc", rpcErr);
+      return NextResponse.json(
+        { error: "Unable to validate email right now." },
+        { status: 500 },
+      );
+    }
 
     const studentProfile = {
       email: normalizedEmail,
@@ -66,13 +75,16 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const { error: profErr } = existingProf
-        ? await admin.from("profiles").update(studentProfile).eq("id", userId)
-        : await admin.from("profiles").insert({ id: userId, ...studentProfile });
+      const { error: profErr } = await admin
+        .from("profiles")
+        .upsert({ id: userId, ...studentProfile }, { onConflict: "id" });
 
       if (profErr) {
-        console.error("[complete-enrollment] profile", profErr);
-        return NextResponse.json({ error: "Profile setup failed" }, { status: 500 });
+        console.error("[complete-enrollment] profile upsert (existing)", profErr);
+        return NextResponse.json(
+          { error: `Profile setup failed: ${profErr.message}` },
+          { status: 500 },
+        );
       }
 
       await admin.auth.admin
@@ -90,27 +102,41 @@ export async function POST(req: NextRequest) {
 
       if (createErr || !created.user) {
         console.error("[complete-enrollment] createUser", createErr);
-        return NextResponse.json({ error: "Unable to finish account signup" }, { status: 500 });
+        return NextResponse.json(
+          {
+            error: createErr?.message || "Unable to finish account signup",
+          },
+          { status: 500 },
+        );
       }
 
       userId = created.user.id;
 
+      // handle_new_user() trigger already inserts a profiles row — upsert, don't insert.
       const { error: profErr } = await admin
         .from("profiles")
-        .insert({ id: userId, ...studentProfile });
+        .upsert({ id: userId, ...studentProfile }, { onConflict: "id" });
 
       if (profErr) {
-        await admin.auth.admin.deleteUser(userId);
-        return NextResponse.json({ error: "Profile setup failed" }, { status: 500 });
+        console.error("[complete-enrollment] profile upsert (new)", profErr);
+        await admin.auth.admin.deleteUser(userId).catch(() => {});
+        return NextResponse.json(
+          { error: `Profile setup failed: ${profErr.message}` },
+          { status: 500 },
+        );
       }
     }
 
     const plan = body.plan as EnrollmentPlan;
-    await sendStudentWelcomeEmail(
-      normalizedEmail,
-      body.name.trim(),
-      `${planAmountDisplay(plan)} (pending verification)`,
-    );
+    try {
+      await sendStudentWelcomeEmail(
+        normalizedEmail,
+        body.name.trim(),
+        `${planAmountDisplay(plan)} (pending verification)`,
+      );
+    } catch (mailErr) {
+      console.error("[complete-enrollment] welcome email", mailErr);
+    }
 
     return NextResponse.json({ success: true, userId, pendingPayment: true });
   } catch (e) {
@@ -118,6 +144,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
     }
     console.error("[complete-enrollment]", e);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    const message = e instanceof Error ? e.message : "Server error";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
