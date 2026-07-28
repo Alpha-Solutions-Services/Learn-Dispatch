@@ -19,9 +19,9 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Learn Dispatch — Student & Instructor",
+  title: "Learn Dispatch — Alpha Freight Network",
   description:
-    "Learn Dispatch student and instructor portal for freight dispatch training.",
+    "Professional truck dispatcher training from Alpha Freight Network. Load boards, carrier docs, RC/BOL/POD, and desk workflows.",
   applicationName: "Learn Dispatch",
   appleWebApp: {
     capable: true,
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     "mobile-web-app-capable": "yes",
   },
   formatDetection: { telephone: false },
-  robots: { index: false, follow: false },
+  robots: { index: true, follow: true },
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [

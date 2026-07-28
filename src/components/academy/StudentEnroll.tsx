@@ -17,16 +17,16 @@ const WHATSAPP = "https://wa.me/923494206922";
 const SUPPORT = "info@alphasolutions.software";
 
 const bundleFeatures = [
-  "Full course access for 2 months",
-  "All modules, quizzes, and practice drills",
-  "Instructor notes and progress tracking",
-  "Certificate path when modules are complete",
+  "All 12 Alpha Freight Network course modules",
+  "US map, equipment, docs, RC/BOL/POD & load boards",
+  "2 months of studio access · instructor progress notes",
+  "Built from the finalized truck dispatch course deck",
 ];
 
 const monthlyFeatures = [
-  "Rolling monthly access to all modules",
-  "Quizzes and practice drills",
-  "Email support on business days",
+  "Rolling access to the full AFN syllabus",
+  "Equipment, paperwork, boards & abbreviations",
+  "Business-day email / WhatsApp support",
 ];
 
 export default function StudentEnroll({ initialReason }: { initialReason?: string }) {
@@ -192,10 +192,10 @@ export default function StudentEnroll({ initialReason }: { initialReason?: strin
           className="mt-4 text-3xl font-bold text-[var(--color-text)]"
           style={{ fontFamily: "var(--font-display), sans-serif" }}
         >
-          Learn Dispatch enrollment
+          Enroll in Learn Dispatch
         </h1>
         <p className="mx-auto mt-2 max-w-2xl text-sm text-[var(--color-muted)]">
-          Pay via NayaPay — our team verifies every payment before unlocking course access.
+          Alpha Freight Network truck dispatcher training — pay via NayaPay. Instructors verify every payment before unlocking the studio.
         </p>
       </div>
 
