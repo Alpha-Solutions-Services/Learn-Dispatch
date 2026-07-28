@@ -1,4 +1,4 @@
-import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { GetObjectCommand, HeadObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 function r2Config() {
@@ -14,6 +14,22 @@ export function isR2Configured(): boolean {
   return r2Config() !== null;
 }
 
+function getR2Client() {
+  const cfg = r2Config();
+  if (!cfg) return null;
+  return {
+    cfg,
+    client: new S3Client({
+      region: "auto",
+      endpoint: `https://${cfg.accountId}.r2.cloudflarestorage.com`,
+      credentials: {
+        accessKeyId: cfg.accessKeyId,
+        secretAccessKey: cfg.secretAccessKey,
+      },
+    }),
+  };
+}
+
 /** Object key from stored video_url (key or full R2 URL). */
 export function resolveR2ObjectKey(videoUrl: string): string | null {
   const raw = videoUrl.trim();
@@ -23,8 +39,6 @@ export function resolveR2ObjectKey(videoUrl: string): string | null {
   }
   try {
     const url = new URL(raw);
-    // https://<account>.r2.cloudflarestorage.com/<bucket>/<key>
-    // or custom domain /pub URL — use pathname without leading slash
     const path = url.pathname.replace(/^\//, "");
     const cfg = r2Config();
     if (cfg && path.startsWith(`${cfg.bucket}/`)) {
@@ -36,29 +50,52 @@ export function resolveR2ObjectKey(videoUrl: string): string | null {
   }
 }
 
+/** Candidate keys: stored path, plus Lectures/ prefix variants. */
+function candidateKeys(videoUrl: string): string[] {
+  const primary = resolveR2ObjectKey(videoUrl);
+  if (!primary) return [];
+  const keys = [primary];
+  const base = primary.split("/").pop() || primary;
+  if (!primary.includes("/")) {
+    keys.push(`Lectures/${base}`);
+  } else if (primary.startsWith("Lectures/")) {
+    keys.push(base);
+  } else {
+    keys.push(`Lectures/${base}`);
+  }
+  return [...new Set(keys)];
+}
+
+async function resolveExistingKey(
+  client: S3Client,
+  bucket: string,
+  videoUrl: string,
+): Promise<string | null> {
+  for (const key of candidateKeys(videoUrl)) {
+    try {
+      await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+      return key;
+    } catch {
+      // try next candidate
+    }
+  }
+  return null;
+}
+
 export async function createR2SignedVideoUrl(
   videoUrl: string,
   expiresInSeconds = 600,
 ): Promise<string | null> {
-  const cfg = r2Config();
-  if (!cfg) return null;
+  const wired = getR2Client();
+  if (!wired) return null;
 
-  const key = resolveR2ObjectKey(videoUrl);
+  const key = await resolveExistingKey(wired.client, wired.cfg.bucket, videoUrl);
   if (!key) return null;
 
-  const client = new S3Client({
-    region: "auto",
-    endpoint: `https://${cfg.accountId}.r2.cloudflarestorage.com`,
-    credentials: {
-      accessKeyId: cfg.accessKeyId,
-      secretAccessKey: cfg.secretAccessKey,
-    },
-  });
-
   const command = new GetObjectCommand({
-    Bucket: cfg.bucket,
+    Bucket: wired.cfg.bucket,
     Key: key,
   });
 
-  return getSignedUrl(client, command, { expiresIn: expiresInSeconds });
+  return getSignedUrl(wired.client, command, { expiresIn: expiresInSeconds });
 }
