@@ -1,0 +1,414 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { BadgeCheck, Sparkles } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import {
+  NAYAPAY_DISPLAY,
+  NAYAPAY_NUMBER,
+  PLAN_PRICING,
+  planAmountDisplay,
+  type EnrollmentPlan,
+} from "@/lib/academy/pricing";
+
+const WHATSAPP = "https://wa.me/923494206922";
+const SUPPORT = "info@alphasolutions.software";
+
+const bundleFeatures = [
+  "Full course access for 2 months",
+  "All modules, quizzes, and practice drills",
+  "Instructor notes and progress tracking",
+  "Certificate path when modules are complete",
+];
+
+const monthlyFeatures = [
+  "Rolling monthly access to all modules",
+  "Quizzes and practice drills",
+  "Email support on business days",
+];
+
+export default function StudentEnroll({ initialReason }: { initialReason?: string }) {
+  const router = useRouter();
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [plan, setPlan] = useState<EnrollmentPlan>("lifetime");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [formErr, setFormErr] = useState<string | null>(null);
+  const [oauthUserId, setOauthUserId] = useState<string | null>(null);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [linkExistingAccount, setLinkExistingAccount] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [claiming, setClaiming] = useState(false);
+  const [claimed, setClaimed] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      const sb = createClient();
+      if (!sb) return;
+      const { data } = await sb.auth.getUser();
+      const u = data.user;
+      if (u?.id) {
+        setOauthUserId(u.id);
+        if (u.email) setEmail(u.email);
+        const metaName =
+          (typeof u.user_metadata?.full_name === "string" && u.user_metadata.full_name) ||
+          (typeof u.user_metadata?.name === "string" && u.user_metadata.name) ||
+          "";
+        if (metaName && !name) setName(metaName);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function validateAndContinue() {
+    setFormErr(null);
+    if (!oauthUserId) {
+      if (password !== confirm || password.length < 8) {
+        setFormErr("Passwords must match and be at least 8 characters.");
+        return;
+      }
+    }
+    try {
+      if (oauthUserId) {
+        setStep(3);
+        return;
+      }
+      const res = await fetch("/api/academy/check-student-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setFormErr(typeof data.error === "string" ? data.error : "Could not validate email.");
+        return;
+      }
+      setLinkExistingAccount(Boolean(data.exists));
+      setStep(3);
+    } catch {
+      setFormErr("Could not validate email.");
+    }
+  }
+
+  async function signInWithGoogle() {
+    setFormErr(null);
+    setGoogleLoading(true);
+    try {
+      const sb = createClient();
+      if (!sb) {
+        setFormErr("Google sign-in is not configured.");
+        return;
+      }
+      const origin = window.location.origin;
+      const { error: oauthError } = await sb.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${origin}/auth/callback?next=/enroll`,
+          queryParams: { prompt: "select_account" },
+        },
+      });
+      if (oauthError) setFormErr(oauthError.message);
+    } finally {
+      setGoogleLoading(false);
+    }
+  }
+
+  async function submitEnrollment() {
+    setSubmitting(true);
+    setFormErr(null);
+    try {
+      const endpoint =
+        oauthUserId || linkExistingAccount
+          ? "/api/academy/complete-enrollment-existing"
+          : "/api/academy/complete-enrollment";
+      const body =
+        oauthUserId || linkExistingAccount
+          ? { plan, name, email }
+          : { plan, name, email, password };
+
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || "Enrollment failed");
+      }
+
+      if (!oauthUserId && password) {
+        const supabase = createClient();
+        if (supabase) await supabase.auth.signInWithPassword({ email, password });
+      }
+
+      setSubmitted(true);
+      router.refresh();
+    } catch (ex: unknown) {
+      setFormErr(ex instanceof Error ? ex.message : "Unexpected error");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function markAsPaid() {
+    setClaiming(true);
+    setFormErr(null);
+    try {
+      const res = await fetch("/api/academy/claim-payment", { method: "POST" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Could not record payment");
+      setClaimed(true);
+    } catch (ex: unknown) {
+      setFormErr(ex instanceof Error ? ex.message : "Could not record payment");
+    } finally {
+      setClaiming(false);
+    }
+  }
+
+  const paymentInstructions = (
+    <div className="mt-6 space-y-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)]/50 p-4 text-left text-sm text-[var(--color-muted)]">
+      <p>
+        Send <strong className="text-[var(--color-text)]">{PLAN_PRICING[plan].amountDisplay}</strong> via{" "}
+        <strong className="text-[var(--color-text)]">NayaPay</strong> to:
+      </p>
+      <p className="text-lg font-bold tracking-wide text-[var(--color-accent)]">{NAYAPAY_DISPLAY}</p>
+      <p className="text-xs">Account number: {NAYAPAY_NUMBER}</p>
+      <p>
+        Use your <strong className="text-[var(--color-text)]">full name</strong> in the transfer note so our team can match your payment.
+      </p>
+    </div>
+  );
+
+  return (
+    <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
+      <div className="mb-12 text-center">
+        <Sparkles className="mx-auto h-10 w-10 text-[var(--color-accent)]" />
+        <h1
+          className="mt-4 text-3xl font-bold text-[var(--color-text)]"
+          style={{ fontFamily: "var(--font-display), sans-serif" }}
+        >
+          Learn Dispatch enrollment
+        </h1>
+        <p className="mx-auto mt-2 max-w-2xl text-sm text-[var(--color-muted)]">
+          Pay via NayaPay — our team verifies every payment before unlocking course access.
+        </p>
+      </div>
+
+      {initialReason === "payment" ? (
+        <p className="mb-10 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-center text-sm text-amber-100">
+          Complete payment to unlock course materials. Send via NayaPay, then tap &quot;I have paid&quot; so we can verify.
+        </p>
+      ) : null}
+
+      {submitted ? (
+        <div className="mx-auto max-w-lg rounded-3xl border border-emerald-500/30 bg-[var(--color-surface)]/40 px-8 py-10 text-center">
+          <h3 className="text-lg font-bold text-[var(--color-text)]">Enrollment submitted</h3>
+          <p className="mt-3 text-sm text-[var(--color-muted)]">
+            Your account is ready. Pay <strong className="text-[var(--color-text)]">{planAmountDisplay(plan)}</strong> via NayaPay, then mark as paid below. Our team will verify and activate your dashboard.
+          </p>
+          {paymentInstructions}
+          {formErr ? <p className="mt-4 text-sm text-red-200">{formErr}</p> : null}
+          <button
+            type="button"
+            disabled={claiming || claimed}
+            onClick={() => void markAsPaid()}
+            className="mt-6 inline-flex w-full items-center justify-center rounded-lg bg-[var(--color-accent)] px-6 py-3 text-sm font-semibold text-[#05080f] disabled:opacity-50"
+          >
+            {claimed ? "Payment marked — awaiting verification" : claiming ? "Saving…" : "I have paid via NayaPay"}
+          </button>
+          <a
+            href={WHATSAPP}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-3 inline-flex w-full items-center justify-center rounded-lg border border-[var(--color-border)] px-6 py-3 text-sm font-semibold text-[var(--color-text)]"
+          >
+            Send receipt on WhatsApp
+          </a>
+          <p className="mt-4 text-xs text-[var(--color-muted)]">
+            Questions? Email {SUPPORT}
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="mb-4 flex justify-center gap-2 text-[11px] uppercase tracking-[0.2em] text-[var(--color-muted)]">
+            <span className={step === 1 ? "text-[var(--color-accent)]" : undefined}>Plan</span>
+            <span>·</span>
+            <span className={step === 2 ? "text-[var(--color-accent)]" : undefined}>Account</span>
+            <span>·</span>
+            <span className={step === 3 ? "text-[var(--color-accent)]" : undefined}>Payment</span>
+          </div>
+
+          {step === 1 ? (
+            <div className="grid gap-6 lg:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => setPlan("monthly")}
+                className={`rounded-2xl border p-8 text-left ${
+                  plan === "monthly"
+                    ? "border-[var(--color-accent)]/80 bg-[var(--color-accent)]/10"
+                    : "border-[var(--color-border)] bg-[var(--color-surface)]/35"
+                }`}
+              >
+                <p className="text-xs uppercase tracking-[0.2em] text-[var(--color-muted)]">Flexible</p>
+                <h2 className="mt-4 text-2xl font-bold text-[var(--color-text)]" style={{ fontFamily: "var(--font-display)" }}>
+                  Monthly Access
+                </h2>
+                <p className="mt-2 text-2xl font-bold text-[var(--color-accent)]">
+                  {PLAN_PRICING.monthly.amountDisplay}
+                  <span className="text-sm font-normal text-[var(--color-muted)]">/month</span>
+                </p>
+                <ul className="mt-6 space-y-2 text-sm text-[var(--color-muted)]">
+                  {monthlyFeatures.map((f) => (
+                    <li key={f}>✓ {f}</li>
+                  ))}
+                </ul>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPlan("lifetime")}
+                className={`relative rounded-2xl border p-8 text-left ${
+                  plan === "lifetime"
+                    ? "border-[var(--color-accent)] shadow-[var(--glow-md)] bg-[radial-gradient(circle_at_top,_rgba(56,163,255,0.3),transparent_60%)]"
+                    : "border-[var(--color-border)] bg-[var(--color-surface)]/35"
+                }`}
+              >
+                <span className="absolute right-6 top-5 rounded-full bg-[var(--color-accent)] px-3 py-0.5 text-[11px] font-bold uppercase text-[#05080f]">
+                  Best value
+                </span>
+                <BadgeCheck className="h-7 w-7 text-[var(--color-accent)]" />
+                <h2 className="mt-4 text-2xl font-bold text-[var(--color-text)]" style={{ fontFamily: "var(--font-display)" }}>
+                  2-Month Course Bundle
+                </h2>
+                <p className="mt-2 text-3xl font-bold text-[var(--color-accent)]">
+                  {PLAN_PRICING.lifetime.amountDisplay}
+                  <span className="block text-xs font-semibold uppercase tracking-[0.28em] text-[var(--color-muted)]">
+                    one-time · 2 months access
+                  </span>
+                </p>
+                <ul className="mt-6 space-y-2 text-sm text-[var(--color-text)]">
+                  {bundleFeatures.map((f) => (
+                    <li key={f}>✓ {f}</li>
+                  ))}
+                </ul>
+              </button>
+            </div>
+          ) : null}
+
+          {step === 1 ? (
+            <div className="mt-10 flex flex-col items-center gap-6">
+              <button
+                type="button"
+                onClick={() => setStep(2)}
+                className="inline-flex min-w-[260px] items-center justify-center rounded-lg bg-[var(--color-accent)] px-10 py-3 text-sm font-bold text-[#05080f]"
+              >
+                Continue with selected plan →
+              </button>
+              <Link href="/" className="text-sm text-[var(--color-accent)] underline">
+                View course overview
+              </Link>
+            </div>
+          ) : null}
+
+          {step === 2 ? (
+            <div className="mx-auto max-w-lg space-y-4 rounded-3xl border border-[var(--color-border)] bg-[var(--color-surface)]/40 px-8 py-10">
+              {formErr ? <p className="text-sm text-red-200">{formErr}</p> : null}
+              {!oauthUserId ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => void signInWithGoogle()}
+                    disabled={googleLoading}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-2.5 text-sm font-semibold text-[var(--color-text)] disabled:opacity-50"
+                  >
+                    {googleLoading ? "Redirecting…" : "Continue with Google"}
+                  </button>
+                  <div className="flex items-center gap-3 text-xs text-[var(--color-muted)]">
+                    <span className="h-px flex-1 bg-[var(--color-border)]" />
+                    or create a password
+                    <span className="h-px flex-1 bg-[var(--color-border)]" />
+                  </div>
+                </>
+              ) : (
+                <p className="text-center text-xs text-[var(--color-muted)]">
+                  Signed in with Google. Continue to payment on the next step.
+                </p>
+              )}
+              <label className="block text-xs text-[var(--color-muted)]">Full name</label>
+              <input
+                required
+                className="w-full rounded-lg border border-[var(--color-border)] bg-[#050912] px-3 py-2 text-[var(--color-text)]"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+              <label className="block text-xs text-[var(--color-muted)]">Email</label>
+              <input
+                required
+                type="email"
+                autoComplete="email"
+                className="w-full rounded-lg border border-[var(--color-border)] bg-[#050912] px-3 py-2 text-[var(--color-text)]"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+              {!oauthUserId ? (
+                <>
+                  <label className="block text-xs text-[var(--color-muted)]">Password · min 8 characters</label>
+                  <input
+                    required
+                    type="password"
+                    className="w-full rounded-lg border border-[var(--color-border)] bg-[#050912] px-3 py-2 text-[var(--color-text)]"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                  <label className="block text-xs text-[var(--color-muted)]">Confirm password</label>
+                  <input
+                    required
+                    type="password"
+                    className="w-full rounded-lg border border-[var(--color-border)] bg-[#050912] px-3 py-2 text-[var(--color-text)]"
+                    value={confirm}
+                    onChange={(e) => setConfirm(e.target.value)}
+                  />
+                </>
+              ) : null}
+              <button type="button" onClick={() => setStep(1)} className="text-xs text-[var(--color-muted)] underline">
+                ← Adjust plan
+              </button>
+              <button
+                type="button"
+                onClick={() => void validateAndContinue()}
+                className="inline-flex w-full items-center justify-center rounded-lg bg-[var(--color-accent)] py-3 text-sm font-semibold text-[#05080f]"
+              >
+                Continue to payment
+              </button>
+            </div>
+          ) : null}
+
+          {step === 3 ? (
+            <div className="mx-auto mt-12 max-w-lg rounded-3xl border border-[var(--color-accent)]/30 bg-[#071021] px-8 py-10">
+              <h3 className="text-lg font-bold text-[var(--color-text)]">
+                Payment — {planAmountDisplay(plan)}
+              </h3>
+              <p className="mt-3 text-sm text-[var(--color-muted)]">
+                Submit enrollment first, then send payment via NayaPay. After paying, tap &quot;I have paid&quot; on the next screen. Our team verifies every payment before activating access.
+              </p>
+              {paymentInstructions}
+              {formErr ? <p className="mt-4 text-sm text-red-200">{formErr}</p> : null}
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={() => void submitEnrollment()}
+                className="mt-6 inline-flex w-full items-center justify-center rounded-lg bg-[var(--color-accent)] py-3 text-sm font-bold text-[#05080f] disabled:opacity-40"
+              >
+                {submitting ? "Submitting…" : "Submit enrollment"}
+              </button>
+            </div>
+          ) : null}
+        </>
+      )}
+    </div>
+  );
+}
