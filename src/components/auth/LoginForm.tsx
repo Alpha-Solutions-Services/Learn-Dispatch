@@ -7,12 +7,14 @@ import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 function authErrorMessage(reason: string | null): string {
+  const callback =
+    "https://learndispatch.alphasolutions.software/auth/callback";
   if (!reason) {
-    return "Authentication failed. Try again, or confirm Supabase Redirect URLs include https://learndispatch.alphasolutions.software/auth/callback";
+    return `Authentication failed. Try again, or add ${callback} in Supabase → Authentication → URL Configuration → Redirect URLs.`;
   }
   const decoded = decodeURIComponent(reason);
   if (decoded === "not_admin" || decoded === "unauthorized") {
-    return "This account is not authorized for instructor access.";
+    return "This account is not authorized for instructor access. Ask an admin to add your email to ADMIN_EMAILS or set your profile role to instructor.";
   }
   if (decoded === "unauthorized_instructor") {
     return "Instructor access only. Students should use Student login.";
@@ -20,8 +22,11 @@ function authErrorMessage(reason: string | null): string {
   if (decoded === "missing_code") {
     return "Sign-in was interrupted. Try Continue with Google again.";
   }
-  if (/redirect|url not allowed|not allowed/i.test(decoded)) {
-    return `${decoded} — add https://learndispatch.alphasolutions.software/auth/callback in Supabase → Authentication → Redirect URLs.`;
+  if (decoded === "missing_supabase_env") {
+    return "Supabase env vars are missing on Vercel. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.";
+  }
+  if (/redirect|url not allowed|not allowed|redirect_uri/i.test(decoded)) {
+    return `${decoded} — add ${callback} in Supabase → Authentication → Redirect URLs, then try again.`;
   }
   return decoded;
 }

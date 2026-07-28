@@ -1,6 +1,8 @@
 const FALLBACK_ADMIN_EMAILS = [
   "alphaassistant.alpha@gmail.com",
   "muhammadmikran.alpha@gmail.com",
+  "mikran.dispatch@gmail.com",
+  "sarmad.dispatch@gmail.com",
 ] as const;
 
 export const SUPER_ADMIN_EMAILS = [...FALLBACK_ADMIN_EMAILS] as const;

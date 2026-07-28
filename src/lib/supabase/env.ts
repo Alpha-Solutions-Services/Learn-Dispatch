@@ -12,11 +12,18 @@ export function isPortalAuthConfigured(): boolean {
   return true;
 }
 
-export function getPortalUrl() {
+/** Public origin for this app (Learn Dispatch). */
+export function getAppUrl() {
   return (
+    process.env.NEXT_PUBLIC_LEARN_DISPATCH_URL?.trim() ||
     process.env.NEXT_PUBLIC_PORTAL_URL?.trim() ||
-    "https://portal.alphasolutions.software"
+    "https://learndispatch.alphasolutions.software"
   );
+}
+
+/** @deprecated Use getAppUrl — kept for Portal-copied helpers */
+export function getPortalUrl() {
+  return getAppUrl();
 }
 
 export function getSiteUrl() {
@@ -24,4 +31,8 @@ export function getSiteUrl() {
     process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
     "https://www.alphasolutions.software"
   );
+}
+
+export function getAuthCallbackUrl() {
+  return `${getAppUrl().replace(/\/$/, "")}/auth/callback`;
 }

@@ -1,5 +1,5 @@
-/* Alpha Portal service worker — do not cache auth / login navigations */
-const CACHE = "alpha-portal-v3";
+/* Learn Dispatch service worker — do not cache auth / login navigations */
+const CACHE = "learn-dispatch-v1";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(self.skipWaiting());
