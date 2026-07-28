@@ -10,7 +10,7 @@ type CookieToSet = {
   options?: Parameters<NextResponse["cookies"]["set"]>[2];
 };
 
-function safeNextPath(raw: string | null): string {
+function safeNextPath(raw: string | null | undefined): string {
   if (raw && raw.startsWith("/") && !raw.startsWith("//")) return raw;
   return "/student/dashboard";
 }
@@ -27,6 +27,8 @@ function loginError(
   for (const c of cookies) {
     res.cookies.set(c.name, c.value, c.options);
   }
+  // Clear oauth next hint
+  res.cookies.set("ld_oauth_next", "", { path: "/", maxAge: 0 });
   return res;
 }
 
@@ -36,8 +38,14 @@ export async function GET(request: NextRequest) {
   const code = url.searchParams.get("code");
   const oauthError = url.searchParams.get("error");
   const oauthDesc = url.searchParams.get("error_description");
-  const next = safeNextPath(url.searchParams.get("next"));
-  const wantsInstructor = next.startsWith("/admin");
+
+  // Prefer query next, fall back to cookie (cookie avoids Supabase redirect URL mismatch with ?next=)
+  const next = safeNextPath(
+    url.searchParams.get("next") || request.cookies.get("ld_oauth_next")?.value,
+  );
+  const wantsInstructor =
+    next.startsWith("/admin") ||
+    request.cookies.get("ld_oauth_role")?.value === "instructor";
 
   if (oauthError) {
     return loginError(origin, oauthDesc || oauthError, [], wantsInstructor);
@@ -54,6 +62,7 @@ export async function GET(request: NextRequest) {
 
   const cookiesToSet: CookieToSet[] = [];
   const supabase = createServerClient(supabaseUrl, anon, {
+    cookieEncoding: "base64url",
     cookies: {
       getAll() {
         return request.cookies.getAll();
@@ -68,6 +77,7 @@ export async function GET(request: NextRequest) {
 
   const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
   if (exchangeError) {
+    console.error("[auth/callback] exchange", exchangeError.message);
     return loginError(origin, exchangeError.message, cookiesToSet, wantsInstructor);
   }
 
@@ -75,16 +85,25 @@ export async function GET(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user?.id) {
-    return loginError(origin, "session_missing_after_exchange", cookiesToSet, wantsInstructor);
+    return loginError(
+      origin,
+      "session_missing_after_exchange",
+      cookiesToSet,
+      wantsInstructor,
+    );
   }
 
   if (wantsInstructor && !(await canManageAcademy(user))) {
+    console.error("[auth/callback] not instructor", {
+      email: user.email,
+      id: user.id,
+    });
     await supabase.auth.signOut();
     return loginError(origin, "not_admin", cookiesToSet, true);
   }
 
   let dest = next;
-  if (next === "/student/dashboard" || next === "/enroll") {
+  if (!wantsInstructor && (next === "/student/dashboard" || next === "/enroll" || next === "/login")) {
     const { data: profile } = await supabase
       .from("profiles")
       .select("role, enrollment_status")
@@ -98,9 +117,15 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  if (wantsInstructor) {
+    dest = "/admin/enrollments";
+  }
+
   const response = NextResponse.redirect(`${origin}${dest}`);
   for (const c of cookiesToSet) {
     response.cookies.set(c.name, c.value, c.options);
   }
+  response.cookies.set("ld_oauth_next", "", { path: "/", maxAge: 0 });
+  response.cookies.set("ld_oauth_role", "", { path: "/", maxAge: 0 });
   return response;
 }

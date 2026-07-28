@@ -13,6 +13,7 @@ export async function middleware(request: NextRequest) {
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
   const supabase = createServerClient(url, anon, {
+    cookieEncoding: "base64url",
     cookies: {
       getAll() {
         return request.cookies.getAll();
@@ -44,7 +45,7 @@ export async function middleware(request: NextRequest) {
   if (!isApi && isProtectedPage && !user) {
     const login = new URL("/login", request.url);
     if (pathname.startsWith("/admin")) {
-      login.searchParams.set("role", "admin");
+      login.searchParams.set("role", "instructor");
     }
     login.searchParams.set("next", pathname);
     return NextResponse.redirect(login);

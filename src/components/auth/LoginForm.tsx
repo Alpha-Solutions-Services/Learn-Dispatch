@@ -57,9 +57,12 @@ async function resolveAfterLogin(): Promise<string> {
       : "/enroll?reason=payment";
   }
 
-  // Staff allowlist (ADMIN_EMAILS) — payment verification
-  const staffRes = await fetch("/api/staff");
-  if (staffRes.ok) return "/admin/enrollments";
+  // Academy staff allowlist / portal_staff (not Portal /api/staff)
+  const accessRes = await fetch("/api/academy/access");
+  if (accessRes.ok) {
+    const body = (await accessRes.json()) as { allowed?: boolean };
+    if (body.allowed) return "/admin/enrollments";
+  }
 
   return "/enroll";
 }
@@ -129,7 +132,10 @@ export function LoginForm({ defaultAdmin = false }: { defaultAdmin?: boolean }) 
       return;
     }
     const next = instructorMode ? "/admin/enrollments" : "/student/dashboard";
-    const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
+    // Store next in cookies so redirectTo can be an exact allowlisted URL (no ?next=).
+    document.cookie = `ld_oauth_next=${encodeURIComponent(next)}; Path=/; Max-Age=600; SameSite=Lax`;
+    document.cookie = `ld_oauth_role=${instructorMode ? "instructor" : "student"}; Path=/; Max-Age=600; SameSite=Lax`;
+    const redirectTo = `${window.location.origin}/auth/callback`;
     const { error: err } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
