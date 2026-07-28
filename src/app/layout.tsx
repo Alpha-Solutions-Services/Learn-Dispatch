@@ -19,14 +19,14 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Alpha Portal — Client & Admin",
+  title: "Learn Dispatch — Student & Instructor",
   description:
-    "Alpha Solutions client and admin portal for projects, tickets, and support.",
-  applicationName: "Alpha Portal",
+    "Learn Dispatch student and instructor portal for freight dispatch training.",
+  applicationName: "Learn Dispatch",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Alpha Portal",
+    title: "Learn Dispatch",
   },
   other: {
     "mobile-web-app-capable": "yes",

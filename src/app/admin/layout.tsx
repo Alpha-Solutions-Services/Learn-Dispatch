@@ -1,9 +1,7 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ResponsiveDashboardShell } from "@/components/layout/ResponsiveDashboardShell";
-import { AdminSidebar } from "@/components/admin/AdminSidebar";
-import { isOwnerUserAsync, isPortalStaff, resolveStaffRole } from "@/lib/admin-auth";
-import { getPortalUser } from "@/lib/portal/auth";
-import { NotificationBell } from "@/components/ui/NotificationBell";
+import { canManageAcademy } from "@/lib/academy/staff-auth";
+import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -12,22 +10,39 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const user = await getPortalUser();
-  if (!user) redirect("/login?role=admin");
-  if (!(await isPortalStaff(user))) redirect("/");
+  const sb = await createClient();
+  const {
+    data: { user },
+  } = sb ? await sb.auth.getUser() : { data: { user: null } };
 
-  const isOwner = await isOwnerUserAsync(user);
-  const role = (await resolveStaffRole(user)) || "staff";
+  if (!user?.id) redirect("/login?role=instructor");
+  if (!(await canManageAcademy(user))) redirect("/login?role=instructor&error=unauthorized");
 
   return (
-    <ResponsiveDashboardShell
-      mobileTitle="Admin"
-      sidebar={
-        <AdminSidebar email={user.email} isOwner={isOwner} role={role} />
-      }
-      headerRight={<NotificationBell />}
-    >
+    <div className="min-h-screen bg-[var(--color-bg)]">
+      <header className="border-b border-[var(--color-border)] px-4 py-4 sm:px-6">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-accent)]">
+              Learn Dispatch
+            </p>
+            <h1 className="text-sm font-semibold text-[var(--color-text)]">Instructor desk</h1>
+          </div>
+          <div className="flex items-center gap-4 text-xs">
+            <Link
+              href="/admin/enrollments"
+              className="text-[var(--color-accent)] hover:underline"
+            >
+              Payment verification
+            </Link>
+            <span className="text-[var(--color-muted)]">{user.email}</span>
+            <Link href="/login" className="text-[var(--color-muted)] hover:text-[var(--color-text)]">
+              Switch account
+            </Link>
+          </div>
+        </div>
+      </header>
       {children}
-    </ResponsiveDashboardShell>
+    </div>
   );
 }

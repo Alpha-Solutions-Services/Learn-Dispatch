@@ -15,9 +15,14 @@ function safeNextPath(raw: string | null): string {
   return "/student/dashboard";
 }
 
-function loginError(origin: string, reason: string, cookies: CookieToSet[] = [], admin = false) {
+function loginError(
+  origin: string,
+  reason: string,
+  cookies: CookieToSet[] = [],
+  instructor = false,
+) {
   const q = new URLSearchParams({ error: "auth", reason });
-  if (admin) q.set("role", "admin");
+  if (instructor) q.set("role", "instructor");
   const res = NextResponse.redirect(`${origin}/login?${q.toString()}`);
   for (const c of cookies) {
     res.cookies.set(c.name, c.value, c.options);
@@ -32,19 +37,19 @@ export async function GET(request: NextRequest) {
   const oauthError = url.searchParams.get("error");
   const oauthDesc = url.searchParams.get("error_description");
   const next = safeNextPath(url.searchParams.get("next"));
-  const wantsAdmin = next.startsWith("/admin");
+  const wantsInstructor = next.startsWith("/admin");
 
   if (oauthError) {
-    return loginError(origin, oauthDesc || oauthError, [], wantsAdmin);
+    return loginError(origin, oauthDesc || oauthError, [], wantsInstructor);
   }
   if (!code) {
-    return loginError(origin, "missing_code", [], wantsAdmin);
+    return loginError(origin, "missing_code", [], wantsInstructor);
   }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
   if (!supabaseUrl || !anon) {
-    return loginError(origin, "missing_supabase_env", [], wantsAdmin);
+    return loginError(origin, "missing_supabase_env", [], wantsInstructor);
   }
 
   const cookiesToSet: CookieToSet[] = [];
@@ -63,17 +68,17 @@ export async function GET(request: NextRequest) {
 
   const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
   if (exchangeError) {
-    return loginError(origin, exchangeError.message, cookiesToSet, wantsAdmin);
+    return loginError(origin, exchangeError.message, cookiesToSet, wantsInstructor);
   }
 
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user?.id) {
-    return loginError(origin, "session_missing_after_exchange", cookiesToSet, wantsAdmin);
+    return loginError(origin, "session_missing_after_exchange", cookiesToSet, wantsInstructor);
   }
 
-  if (wantsAdmin && !(await canManageAcademy(user))) {
+  if (wantsInstructor && !(await canManageAcademy(user))) {
     await supabase.auth.signOut();
     return loginError(origin, "not_admin", cookiesToSet, true);
   }

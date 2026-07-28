@@ -1,8 +1,8 @@
 {
-  "name": "Alpha Portal",
-  "short_name": "Alpha Portal",
-  "description": "Alpha Solutions client and admin portal",
-  "start_url": "/dashboard",
+  "name": "Learn Dispatch",
+  "short_name": "Learn Dispatch",
+  "description": "Alpha Solutions student and instructor academy portal",
+  "start_url": "/login",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",

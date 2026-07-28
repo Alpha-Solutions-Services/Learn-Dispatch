@@ -7,8 +7,8 @@ import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-async function resolveDestination(user: User, wantsAdmin: boolean) {
-  if (wantsAdmin && (await canManageAcademy(user))) {
+async function resolveDestination(user: User, wantsInstructor: boolean) {
+  if (wantsInstructor && (await canManageAcademy(user))) {
     return "/admin/enrollments";
   }
 
@@ -25,7 +25,12 @@ async function resolveDestination(user: User, wantsAdmin: boolean) {
     return "/admin/enrollments";
   }
   if (profile?.role === "student") {
-    return profile.enrollment_status === "paid" ? "/student/dashboard" : "/enroll?reason=payment";
+    if (wantsInstructor) {
+      return "/login?role=instructor&error=unauthorized&reason=unauthorized_instructor";
+    }
+    return profile.enrollment_status === "paid"
+      ? "/student/dashboard"
+      : "/enroll?reason=payment";
   }
   if (await canManageAcademy(user)) {
     return "/admin/enrollments";
@@ -38,19 +43,22 @@ export default async function LoginPage({
 }: {
   searchParams: { role?: string; error?: string; reason?: string };
 }) {
+  const wantsInstructor =
+    searchParams.role === "instructor" || searchParams.role === "admin";
+
   const sb = await createClient();
   const {
     data: { user },
   } = sb ? await sb.auth.getUser() : { data: { user: null } };
 
   if (user?.id) {
-    redirect(await resolveDestination(user, searchParams.role === "admin"));
+    redirect(await resolveDestination(user, wantsInstructor));
   }
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-[radial-gradient(ellipse_at_top,_rgba(56,163,255,0.12),_transparent_55%)] px-4 py-12">
       <Suspense fallback={null}>
-        <LoginForm defaultAdmin={searchParams.role === "admin"} />
+        <LoginForm defaultAdmin={wantsInstructor} />
       </Suspense>
     </main>
   );

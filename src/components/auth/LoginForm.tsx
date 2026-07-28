@@ -2,37 +2,74 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 function authErrorMessage(reason: string | null): string {
   if (!reason) {
-    return "Authentication failed. Try Continue with Google again, or confirm Supabase Redirect URLs include https://portal.alphasolutions.software/auth/callback";
+    return "Authentication failed. Try again, or confirm Supabase Redirect URLs include https://learndispatch.alphasolutions.software/auth/callback";
   }
   const decoded = decodeURIComponent(reason);
-  if (decoded === "not_admin") {
-    return "This Google account is not authorized for admin access.";
+  if (decoded === "not_admin" || decoded === "unauthorized") {
+    return "This account is not authorized for instructor access.";
+  }
+  if (decoded === "unauthorized_instructor") {
+    return "Instructor access only. Students should use Student login.";
   }
   if (decoded === "missing_code") {
-    return "Sign-in was interrupted (missing auth code). Try Continue with Google again.";
+    return "Sign-in was interrupted. Try Continue with Google again.";
   }
   if (/redirect|url not allowed|not allowed/i.test(decoded)) {
-    return `${decoded} — add https://portal.alphasolutions.software/auth/callback in Supabase → Authentication → URL Configuration → Redirect URLs.`;
+    return `${decoded} — add https://learndispatch.alphasolutions.software/auth/callback in Supabase → Authentication → Redirect URLs.`;
   }
   return decoded;
 }
 
+async function resolveAfterLogin(): Promise<string> {
+  const supabase = createClient();
+  if (!supabase) return "/login";
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user?.id) return "/login";
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role, enrollment_status")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const role = profile?.role;
+
+  if (role === "instructor" || role === "dispatcher") {
+    return "/admin/enrollments";
+  }
+  if (role === "student") {
+    return profile?.enrollment_status === "paid"
+      ? "/student/dashboard"
+      : "/enroll?reason=payment";
+  }
+
+  // Staff allowlist (ADMIN_EMAILS) — payment verification
+  const staffRes = await fetch("/api/staff");
+  if (staffRes.ok) return "/admin/enrollments";
+
+  return "/enroll";
+}
+
 export function LoginForm({ defaultAdmin = false }: { defaultAdmin?: boolean }) {
   const sp = useSearchParams();
+  const instructorMode = defaultAdmin || sp?.get("role") === "instructor";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(() =>
-    sp?.get("error") === "auth" ? authErrorMessage(sp.get("reason")) : null,
+    sp?.get("error") === "auth" || sp?.get("error") === "unauthorized"
+      ? authErrorMessage(sp.get("reason") || sp.get("error"))
+      : null,
   );
   const [busy, setBusy] = useState(false);
-  const [mode, setMode] = useState<"signin" | "signup">(
-    defaultAdmin ? "signin" : "signin"
-  );
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -46,24 +83,30 @@ export function LoginForm({ defaultAdmin = false }: { defaultAdmin?: boolean }) 
     }
 
     try {
-      if (mode === "signup") {
-        const { error: err } = await supabase.auth.signUp({ email, password });
-        if (err) throw err;
-      } else {
-        const { error: err } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-        if (err) throw err;
+      const { error: err } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (err) throw err;
+
+      const dest = await resolveAfterLogin();
+
+      if (instructorMode) {
+        const isInstructorDest =
+          dest.startsWith("/admin") || dest.includes("enrollments");
+        if (!isInstructorDest) {
+          await supabase.auth.signOut();
+          throw new Error("This account is not authorized for instructor access");
+        }
       }
 
-      const staffRes = await fetch("/api/staff");
-      const isAdmin = staffRes.ok;
-      if (defaultAdmin && !isAdmin) {
-        await supabase.auth.signOut();
-        throw new Error("This account is not authorized for admin access");
+      if (!instructorMode && dest.startsWith("/admin")) {
+        // Student form used by instructor — still send them to instructor area
+        window.location.href = dest;
+        return;
       }
-      window.location.href = isAdmin ? "/admin" : "/dashboard";
+
+      window.location.href = dest;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {
@@ -80,9 +123,7 @@ export function LoginForm({ defaultAdmin = false }: { defaultAdmin?: boolean }) 
       setBusy(false);
       return;
     }
-    const next = defaultAdmin ? "/admin" : "/dashboard";
-    // Include next in redirectTo so the server callback can route without sessionStorage.
-    // Supabase matches the path; query string is fine when /auth/callback is allowlisted.
+    const next = instructorMode ? "/admin/enrollments" : "/student/dashboard";
     const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
     const { error: err } = await supabase.auth.signInWithOAuth({
       provider: "google",
@@ -98,7 +139,7 @@ export function LoginForm({ defaultAdmin = false }: { defaultAdmin?: boolean }) 
       setError(
         err.message.includes("provider")
           ? "Google sign-in is not enabled in Supabase Auth → Providers."
-          : `${err.message} — add https://portal.alphasolutions.software/auth/callback to Supabase Auth → URL Configuration → Redirect URLs.`
+          : `${err.message} — add https://learndispatch.alphasolutions.software/auth/callback to Supabase Redirect URLs.`,
       );
       setBusy(false);
     }
@@ -109,7 +150,7 @@ export function LoginForm({ defaultAdmin = false }: { defaultAdmin?: boolean }) 
       <div className="mb-6 flex flex-col items-center text-center">
         <Image
           src="/alpha-logo.png"
-          alt="Alpha Solutions"
+          alt="Learn Dispatch"
           width={64}
           height={64}
           className="mb-3 rounded-xl"
@@ -118,10 +159,10 @@ export function LoginForm({ defaultAdmin = false }: { defaultAdmin?: boolean }) 
           className="text-2xl font-bold text-[var(--color-text)]"
           style={{ fontFamily: "var(--font-display), sans-serif" }}
         >
-          {defaultAdmin ? "Admin login" : "Client portal"}
+          {instructorMode ? "Instructor login" : "Student portal"}
         </h1>
-        <p className="mt-1 text-sm text-[var(--color-muted)]">
-          portal.alphasolutions.software
+        <p className="mt-1 text-sm text-[var(--color-accent)]">
+          learndispatch.alphasolutions.software
         </p>
       </div>
 
@@ -149,11 +190,7 @@ export function LoginForm({ defaultAdmin = false }: { defaultAdmin?: boolean }) 
           disabled={busy}
           className="w-full rounded-xl bg-[var(--color-accent)] py-3 text-sm font-semibold text-[#05080f] disabled:opacity-50"
         >
-          {busy
-            ? "Please wait…"
-            : mode === "signup"
-              ? "Create account"
-              : "Sign in"}
+          {busy ? "Please wait…" : "Sign in"}
         </button>
       </form>
 
@@ -165,27 +202,22 @@ export function LoginForm({ defaultAdmin = false }: { defaultAdmin?: boolean }) 
         Continue with Google
       </button>
 
-      {!defaultAdmin ? (
-        <button
-          type="button"
-          className="mt-4 w-full text-center text-xs text-[var(--color-muted)] hover:text-[var(--color-accent)]"
-          onClick={() =>
-            setMode((m) => (m === "signin" ? "signup" : "signin"))
-          }
-        >
-          {mode === "signin"
-            ? "Need an account? Sign up"
-            : "Already have an account? Sign in"}
-        </button>
+      {!instructorMode ? (
+        <p className="mt-4 text-center text-xs text-[var(--color-muted)]">
+          New student?{" "}
+          <Link href="/enroll" className="text-[var(--color-accent)] hover:underline">
+            Enroll here
+          </Link>
+        </p>
       ) : null}
 
       <p className="mt-6 text-center text-xs text-[var(--color-muted)]">
-        <a
-          href={defaultAdmin ? "/login" : "/login?role=admin"}
+        <Link
+          href={instructorMode ? "/login" : "/login?role=instructor"}
           className="text-[var(--color-accent)] hover:underline"
         >
-          {defaultAdmin ? "Client login" : "Admin login"}
-        </a>
+          {instructorMode ? "Student login" : "Instructor login"}
+        </Link>
       </p>
     </div>
   );
