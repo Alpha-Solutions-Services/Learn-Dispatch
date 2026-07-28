@@ -169,6 +169,10 @@ export function LoginForm({ defaultAdmin = false }: { defaultAdmin?: boolean }) 
         <p className="mt-1 text-sm text-[var(--color-accent)]">
           learndispatch.alphasolutions.software
         </p>
+        <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-100">
+          If you see &quot;Client portal&quot;, you are on the wrong site. Close it and open this
+          Learn Dispatch page instead.
+        </p>
       </div>
 
       <form onSubmit={(e) => void onSubmit(e)} className="space-y-4">

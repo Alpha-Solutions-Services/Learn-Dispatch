@@ -8,20 +8,42 @@ type BeforeInstallPromptEvent = Event & {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 };
 
+/** Kill stale Portal SW/caches that can keep showing Client portal UI. */
+async function purgeStaleWorkers() {
+  if (!("serviceWorker" in navigator)) return;
+  const regs = await navigator.serviceWorker.getRegistrations();
+  await Promise.all(regs.map((r) => r.unregister()));
+  if ("caches" in window) {
+    const keys = await caches.keys();
+    await Promise.all(keys.map((k) => caches.delete(k)));
+  }
+}
+
 export function PwaRegister() {
-  const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(
-    null
-  );
+  const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
   const [show, setShow] = useState(false);
 
   useEffect(() => {
-    if ("serviceWorker" in navigator) {
-      void navigator.serviceWorker.register("/sw.js").catch(() => {});
-    }
+    void (async () => {
+      try {
+        const purged = sessionStorage.getItem("ld-sw-purged");
+        if (!purged) {
+          await purgeStaleWorkers();
+          sessionStorage.setItem("ld-sw-purged", "1");
+          // One reload so the next register is clean Learn Dispatch SW
+          if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+            window.location.reload();
+            return;
+          }
+        }
+        await navigator.serviceWorker.register("/sw.js");
+      } catch {
+        /* ignore */
+      }
+    })();
 
     const onBip = (e: Event) => {
-      const dismissed = sessionStorage.getItem("pwa-dismiss");
-      if (dismissed) return;
+      if (sessionStorage.getItem("pwa-dismiss")) return;
       e.preventDefault();
       setDeferred(e as BeforeInstallPromptEvent);
       setShow(true);
@@ -43,10 +65,10 @@ export function PwaRegister() {
             className="text-sm font-semibold text-[var(--color-text)]"
             style={{ fontFamily: "var(--font-display), sans-serif" }}
           >
-            Install Alpha Portal
+            Install Learn Dispatch
           </p>
           <p className="mt-0.5 text-xs text-[var(--color-muted)]">
-            Add to your home screen for quick access like an app.
+            Add the student academy to your home screen.
           </p>
           <div className="mt-3 flex gap-2">
             <button
