@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
       enrollment_status: "pending" as const,
       enrollment_plan: body.plan,
       enrolled_at: new Date().toISOString(),
+      payment_method: "naya_pay" as const,
     };
 
     let userId: string;

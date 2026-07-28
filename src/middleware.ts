@@ -39,7 +39,9 @@ export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const isApi = pathname.startsWith("/api/");
   const isProtectedPage =
-    pathname.startsWith("/dashboard") || pathname.startsWith("/admin");
+    pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/student");
 
   // API routes self-check auth and return JSON — do not redirect here.
   if (!isApi && isProtectedPage && !user) {
@@ -58,6 +60,7 @@ export const config = {
   matcher: [
     "/dashboard/:path*",
     "/admin/:path*",
+    "/student/:path*",
     "/login",
     // Do NOT run middleware on /auth/callback — it can break PKCE cookie exchange
     "/api/:path*",

@@ -14,13 +14,16 @@ function formatWhen(value: string | null) {
 function statusClass(status: string) {
   if (status === "paid") return "bg-emerald-500/15 text-emerald-300";
   if (status === "pending") return "bg-amber-500/15 text-amber-300";
+  if (status === "expired") return "bg-orange-500/15 text-orange-300";
   if (status === "refunded") return "bg-white/10 text-[var(--color-muted)]";
   return "bg-red-500/15 text-red-300";
 }
 
 export function AdminEnrollments() {
   const [students, setStudents] = useState<AcademyStudentRow[]>([]);
-  const [filter, setFilter] = useState<"all" | "pending" | "paid" | "unpaid">("pending");
+  const [filter, setFilter] = useState<"all" | "pending" | "paid" | "unpaid" | "expired">(
+    "pending",
+  );
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -101,7 +104,7 @@ export function AdminEnrollments() {
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {(["pending", "paid", "unpaid", "all"] as const).map((key) => (
+        {(["pending", "paid", "expired", "unpaid", "all"] as const).map((key) => (
           <button
             key={key}
             type="button"
@@ -154,6 +157,11 @@ export function AdminEnrollments() {
                   </td>
                   <td className="px-4 py-3 text-[var(--color-muted)]">
                     {planLabel(student.enrollmentPlan)}
+                    {student.paidUntil ? (
+                      <span className="mt-1 block text-[10px]">
+                        until {formatWhen(student.paidUntil)}
+                      </span>
+                    ) : null}
                   </td>
                   <td className="px-4 py-3 text-[var(--color-muted)]">
                     {formatWhen(student.enrolledAt)}

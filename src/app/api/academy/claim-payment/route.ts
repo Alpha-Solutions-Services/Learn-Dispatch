@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logPaymentAudit } from "@/lib/academy/academy-db";
 import { createClient } from "@/lib/supabase/server";
 import { getServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -49,6 +50,13 @@ export async function POST(_req: NextRequest) {
     console.error("[claim-payment]", error);
     return NextResponse.json({ error: "Could not record payment claim" }, { status: 500 });
   }
+
+  await logPaymentAudit({
+    studentId: user.id,
+    action: "claimed_paid",
+    actorId: user.id,
+    note,
+  });
 
   return NextResponse.json({ success: true, claimedAt: stamp });
 }
