@@ -64,7 +64,22 @@ export async function GET(req: NextRequest, ctx: Ctx) {
     const headers = new Headers();
     headers.set("Content-Type", obj.contentType);
     headers.set("Accept-Ranges", obj.acceptRanges);
-    headers.set("Cache-Control", "private, max-age=120");
+    headers.set("Cache-Control", "private, no-store");
+    headers.set("Content-Disposition", 'inline; filename="lesson.bin"');
+    headers.set("X-Content-Type-Options", "nosniff");
+    headers.set("Cross-Origin-Resource-Policy", "same-origin");
+    // Discourage hotlinking / casual download tools
+    const referer = req.headers.get("referer") || "";
+    const origin = req.headers.get("origin") || "";
+    const host = req.nextUrl.origin;
+    const okRef =
+      !referer ||
+      referer.startsWith(host) ||
+      referer.includes("learndispatch.alphasolutions.software");
+    const okOrigin = !origin || origin === host || origin.includes("learndispatch.alphasolutions.software");
+    if (!okRef || !okOrigin) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
     if (obj.contentLength != null) headers.set("Content-Length", String(obj.contentLength));
     if (obj.contentRange) headers.set("Content-Range", obj.contentRange);
 

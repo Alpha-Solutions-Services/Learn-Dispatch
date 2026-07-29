@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStudentPaidAccess, isPaidAccessActive } from "@/lib/academy/access";
 import { getPublishedModuleById } from "@/lib/academy/academy-db";
-import { createR2SignedVideoUrl, isR2Configured } from "@/lib/academy/r2";
+import { isR2Configured } from "@/lib/academy/r2";
 import { extractYoutubeVideoId } from "@/lib/academy/youtube";
 import { createClient } from "@/lib/supabase/server";
 
@@ -79,12 +79,11 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
     });
   }
 
-  // Prefer same-origin proxy (no R2 CORS). Keep signedUrl as fallback.
-  const signedUrl = await createR2SignedVideoUrl(rawUrl, 600);
+  // Same-origin proxy only — never expose R2 signed URLs to the browser
+  // (those show up in “Copy video address” / Save as…).
   return NextResponse.json({
     provider: "r2",
     streamUrl: `/api/modules/${moduleId}/stream`,
-    signedUrl: signedUrl ?? null,
     expiresIn: 600,
   });
 }

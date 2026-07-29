@@ -88,7 +88,7 @@ export default async function StudentModulePage({ params }: PageProps) {
           <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--color-chrome)]">
             Lesson video
           </h2>
-          <GatedVideoPlayer moduleId={mod.id} />
+          <GatedVideoPlayer moduleId={mod.id} watermark={user.email} />
         </section>
 
         {mod.content_md ? (
