@@ -1,10 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2, PlayCircle, RefreshCw } from "lucide-react";
 
 type VideoPayload =
-  | { provider: "r2"; signedUrl: string; expiresIn: number }
+  | {
+      provider: "r2";
+      streamUrl?: string;
+      signedUrl?: string | null;
+      expiresIn: number;
+    }
   | { provider: "youtube"; videoId: string; expiresIn: null }
   | { provider: "none"; message: string };
 
@@ -14,7 +19,7 @@ export function GatedVideoPlayer({ moduleId }: { moduleId: string }) {
   const [playError, setPlayError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const [useSignedFallback, setUseSignedFallback] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -22,6 +27,7 @@ export function GatedVideoPlayer({ moduleId }: { moduleId: string }) {
       setLoading(true);
       setError(null);
       setPlayError(null);
+      setUseSignedFallback(false);
       try {
         const res = await fetch(`/api/modules/${moduleId}/video`);
         const body = (await res.json()) as VideoPayload & { error?: string };
@@ -89,23 +95,31 @@ export function GatedVideoPlayer({ moduleId }: { moduleId: string }) {
     );
   }
 
+  const src =
+    useSignedFallback && payload.signedUrl
+      ? payload.signedUrl
+      : payload.streamUrl || payload.signedUrl || "";
+
   return (
     <div className="overflow-hidden rounded-2xl border border-[var(--color-border)] bg-black">
       <video
-        key={payload.signedUrl}
-        ref={videoRef}
+        key={`${src}-${reloadKey}`}
         className="aspect-video w-full"
         controls
         controlsList="nodownload"
         playsInline
         preload="metadata"
-        crossOrigin="anonymous"
-        src={payload.signedUrl}
-        onError={() =>
+        src={src}
+        onError={() => {
+          if (!useSignedFallback && payload.signedUrl) {
+            setUseSignedFallback(true);
+            setPlayError("Trying alternate secure link…");
+            return;
+          }
           setPlayError(
-            "Playback failed. Usually R2 CORS is missing — in Cloudflare R2 → learndispatch → Settings → CORS, allow https://learndispatch.alphasolutions.software for GET/HEAD. Then refresh.",
-          )
-        }
+            "Playback failed. Confirm the MP4 exists in R2 and R2_* env vars are set on Vercel, then tap Renew.",
+          );
+        }}
       >
         Your browser does not support video playback.
       </video>
@@ -115,8 +129,7 @@ export function GatedVideoPlayer({ moduleId }: { moduleId: string }) {
         </p>
       ) : (
         <p className="border-t border-[var(--color-border)] bg-[var(--color-surface)]/80 px-3 py-2 text-[10px] uppercase tracking-wider text-[var(--color-muted)]">
-          Secure link expires in ~{Math.round(payload.expiresIn / 60)} minutes — refresh the page to
-          renew.
+          Secure same-origin stream · seeking supported
         </p>
       )}
       <button
@@ -124,7 +137,7 @@ export function GatedVideoPlayer({ moduleId }: { moduleId: string }) {
         className="flex w-full items-center justify-center gap-2 border-t border-[var(--color-border)] py-2 text-xs text-[var(--color-accent)]"
         onClick={() => setReloadKey((k) => k + 1)}
       >
-        <RefreshCw className="h-3.5 w-3.5" /> Renew secure link
+        <RefreshCw className="h-3.5 w-3.5" /> Renew stream
       </button>
     </div>
   );

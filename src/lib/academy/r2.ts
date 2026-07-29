@@ -1,5 +1,6 @@
 import { GetObjectCommand, HeadObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import type { Readable } from "stream";
 
 function r2Config() {
   const accountId = process.env.R2_ACCOUNT_ID?.trim();
@@ -50,7 +51,6 @@ export function resolveR2ObjectKey(videoUrl: string): string | null {
   }
 }
 
-/** Candidate keys: stored path, plus Lectures/ prefix variants. */
 function candidateKeys(videoUrl: string): string[] {
   const primary = resolveR2ObjectKey(videoUrl);
   if (!primary) return [];
@@ -76,7 +76,7 @@ async function resolveExistingKey(
       await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
       return key;
     } catch {
-      // try next candidate
+      // try next
     }
   }
   return null;
@@ -98,4 +98,54 @@ export async function createR2SignedVideoUrl(
   });
 
   return getSignedUrl(wired.client, command, { expiresIn: expiresInSeconds });
+}
+
+export type R2ObjectStream = {
+  body: ReadableStream<Uint8Array> | null;
+  contentType: string;
+  contentLength?: number;
+  contentRange?: string;
+  acceptRanges: string;
+  status: number;
+  resolvedKey: string;
+};
+
+/** Fetch object from R2 for same-origin proxy playback (supports Range). */
+export async function getR2ObjectStream(
+  videoUrl: string,
+  rangeHeader?: string | null,
+): Promise<R2ObjectStream | null> {
+  const wired = getR2Client();
+  if (!wired) return null;
+
+  const key = await resolveExistingKey(wired.client, wired.cfg.bucket, videoUrl);
+  if (!key) return null;
+
+  const command = new GetObjectCommand({
+    Bucket: wired.cfg.bucket,
+    Key: key,
+    ...(rangeHeader ? { Range: rangeHeader } : {}),
+  });
+
+  const out = await wired.client.send(command);
+  const nodeBody = out.Body as unknown as {
+    transformToWebStream?: () => ReadableStream<Uint8Array>;
+  } & Readable;
+  let webBody: ReadableStream<Uint8Array> | null = null;
+  if (typeof nodeBody?.transformToWebStream === "function") {
+    webBody = nodeBody.transformToWebStream();
+  } else if (nodeBody) {
+    const { Readable: NodeReadable } = await import("stream");
+    webBody = NodeReadable.toWeb(nodeBody as Readable) as ReadableStream<Uint8Array>;
+  }
+
+  return {
+    body: webBody,
+    contentType: out.ContentType || "video/mp4",
+    contentLength: out.ContentLength,
+    contentRange: out.ContentRange,
+    acceptRanges: out.AcceptRanges || "bytes",
+    status: rangeHeader ? 206 : 200,
+    resolvedKey: key,
+  };
 }

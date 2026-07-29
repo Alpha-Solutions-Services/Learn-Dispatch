@@ -16,6 +16,7 @@ const nav = [
   { href: "/student/dashboard", label: "My learning", icon: LayoutDashboard },
   { href: "/student/messages", label: "Instructor chat", icon: MessageCircle },
   { href: "/student/assistant", label: "AI assistant", icon: Sparkles },
+  { href: "/student/certificates", label: "Certificates", icon: BookOpen },
 ];
 
 export default async function StudentLayout({

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { canManageAcademy } from "@/lib/academy/staff-auth";
 import { isPortalStaff } from "@/lib/admin-auth";
 import { notifyClientAdminMessage } from "@/lib/email/dm-notify";
 import { getSessionUser } from "@/lib/portal/require-session";
@@ -11,6 +12,10 @@ const postSchema = z.object({
   attachment_mime: z.string().optional(),
   attachment_name: z.string().optional(),
 });
+
+async function assertStaff(user: Parameters<typeof isPortalStaff>[0]) {
+  return (await isPortalStaff(user)) || (await canManageAcademy(user));
+}
 
 async function signAttachments(
   messages: Array<Record<string, unknown>>,
@@ -34,7 +39,7 @@ export async function GET(
 ) {
   const session = await getSessionUser();
   if ("error" in session) return session.error;
-  if (!(await isPortalStaff(session.user))) {
+  if (!(await assertStaff(session.user))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -74,7 +79,7 @@ export async function POST(
 ) {
   const session = await getSessionUser();
   if ("error" in session) return session.error;
-  if (!(await isPortalStaff(session.user))) {
+  if (!(await assertStaff(session.user))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

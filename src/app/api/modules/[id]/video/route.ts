@@ -79,17 +79,12 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
     });
   }
 
+  // Prefer same-origin proxy (no R2 CORS). Keep signedUrl as fallback.
   const signedUrl = await createR2SignedVideoUrl(rawUrl, 600);
-  if (!signedUrl) {
-    return NextResponse.json({
-      provider: "none",
-      message: "Could not prepare video playback. Try again in a moment.",
-    });
-  }
-
   return NextResponse.json({
     provider: "r2",
-    signedUrl,
+    streamUrl: `/api/modules/${moduleId}/stream`,
+    signedUrl: signedUrl ?? null,
     expiresIn: 600,
   });
 }
