@@ -28,9 +28,15 @@ const monthlyFeatures = [
   "Business-day email / WhatsApp support",
 ];
 
-export default function StudentEnroll({ initialReason }: { initialReason?: string }) {
+export default function StudentEnroll({
+  initialReason,
+  resumeAccount = false,
+}: {
+  initialReason?: string;
+  resumeAccount?: boolean;
+}) {
   const router = useRouter();
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<1 | 2 | 3>(resumeAccount ? 2 : 1);
   const [plan, setPlan] = useState<EnrollmentPlan>("lifetime");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -46,11 +52,15 @@ export default function StudentEnroll({ initialReason }: { initialReason?: strin
   const [challanNo, setChallanNo] = useState<string | null>(null);
   const [claiming, setClaiming] = useState(false);
   const [claimed, setClaimed] = useState(false);
+  const [bootstrapping, setBootstrapping] = useState(true);
 
   useEffect(() => {
     void (async () => {
       const sb = createClient();
-      if (!sb) return;
+      if (!sb) {
+        setBootstrapping(false);
+        return;
+      }
       const { data } = await sb.auth.getUser();
       const u = data.user;
       if (u?.id) {
@@ -60,8 +70,43 @@ export default function StudentEnroll({ initialReason }: { initialReason?: strin
           (typeof u.user_metadata?.full_name === "string" && u.user_metadata.full_name) ||
           (typeof u.user_metadata?.name === "string" && u.user_metadata.name) ||
           "";
-        if (metaName && !name) setName(metaName);
+        if (metaName) setName((prev) => prev || metaName);
+
+        const { data: profile } = await sb
+          .from("profiles")
+          .select("role, enrollment_status, enrollment_plan, full_name, whatsapp_phone")
+          .eq("id", u.id)
+          .maybeSingle();
+
+        if (profile?.role === "student" && profile.enrollment_status === "paid") {
+          router.replace("/student/dashboard?welcome=1");
+          return;
+        }
+
+        if (profile?.full_name) setName(profile.full_name as string);
+        if (profile?.whatsapp_phone) setWhatsapp(profile.whatsapp_phone as string);
+        if (profile?.enrollment_plan === "monthly" || profile?.enrollment_plan === "lifetime") {
+          setPlan(profile.enrollment_plan);
+        }
+
+        // Unpaid / pending student after Google → Continue payment (not plan start).
+        if (
+          profile?.role === "student" &&
+          (profile.enrollment_status === "pending" ||
+            profile.enrollment_status === "unpaid" ||
+            initialReason === "payment")
+        ) {
+          setSubmitted(true);
+          setClaimed(profile.enrollment_status === "pending");
+          setBootstrapping(false);
+          return;
+        }
+
+        setStep(2);
+      } else if (resumeAccount) {
+        setStep(2);
       }
+      setBootstrapping(false);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -110,9 +155,8 @@ export default function StudentEnroll({ initialReason }: { initialReason?: strin
         setFormErr("Google sign-in is not configured.");
         return;
       }
-      // Exact allowlisted callback only — query params break Supabase Redirect URLs
-      // and fall back to the shared Site URL (Client Portal).
-      document.cookie = `ld_oauth_next=${encodeURIComponent("/enroll")}; Path=/; Max-Age=600; SameSite=Lax`;
+      // Resume account/payment after Google — not enroll start (plan picker).
+      document.cookie = `ld_oauth_next=${encodeURIComponent("/enroll?continue=account")}; Path=/; Max-Age=600; SameSite=Lax`;
       document.cookie = `ld_oauth_role=student; Path=/; Max-Age=600; SameSite=Lax`;
       const redirectTo = `${window.location.origin}/auth/callback`;
       const { error: oauthError } = await sb.auth.signInWithOAuth({
@@ -162,8 +206,8 @@ export default function StudentEnroll({ initialReason }: { initialReason?: strin
 
       setChallanNo(typeof json.challanNo === "string" ? json.challanNo : null);
       setSubmitted(true);
-      // Land in Learn Dispatch studio (not Client Portal) after signup.
-      router.replace("/student/dashboard?welcome=enrolled");
+      // Stay on Continue payment — not marketing start or empty studio.
+      router.replace("/enroll?reason=payment");
       router.refresh();
     } catch (ex: unknown) {
       setFormErr(ex instanceof Error ? ex.message : "Unexpected error");
@@ -204,6 +248,14 @@ export default function StudentEnroll({ initialReason }: { initialReason?: strin
     </div>
   );
 
+  if (bootstrapping) {
+    return (
+      <div className="mx-auto max-w-lg px-4 py-24 text-center text-sm text-[var(--color-muted)]">
+        Preparing your enrollment…
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
       <div className="mb-12 text-center">
@@ -212,10 +264,12 @@ export default function StudentEnroll({ initialReason }: { initialReason?: strin
           className="mt-4 text-3xl font-bold text-[var(--color-text)]"
           style={{ fontFamily: "var(--font-display), sans-serif" }}
         >
-          Enroll in Learn Dispatch
+          {submitted ? "Continue payment" : "Enroll in Learn Dispatch"}
         </h1>
         <p className="mx-auto mt-2 max-w-2xl text-sm text-[var(--color-muted)]">
-          Alpha Freight Network truck dispatcher training — pay via NayaPay. Instructors verify every payment before unlocking the studio.
+          {submitted
+            ? "Send NayaPay, then mark as paid so your instructor can verify and unlock the studio."
+            : "Alpha Freight Network truck dispatcher training — pay via NayaPay. Instructors verify every payment before unlocking the studio."}
         </p>
       </div>
 

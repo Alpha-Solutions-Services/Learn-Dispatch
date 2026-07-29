@@ -52,7 +52,9 @@ async function resolveAfterLogin(): Promise<string> {
     return "/admin/enrollments";
   }
   if (role === "student") {
-    return "/student/dashboard";
+    return profile?.enrollment_status === "paid"
+      ? "/student/dashboard"
+      : "/enroll?reason=payment";
   }
 
   // Academy staff allowlist / portal_staff (not Portal /api/staff)
@@ -62,7 +64,7 @@ async function resolveAfterLogin(): Promise<string> {
     if (body.allowed) return "/admin/enrollments";
   }
 
-  return "/student/dashboard";
+  return "/enroll?continue=account";
 }
 
 export function LoginForm({ defaultAdmin = false }: { defaultAdmin?: boolean }) {
@@ -129,8 +131,9 @@ export function LoginForm({ defaultAdmin = false }: { defaultAdmin?: boolean }) 
       setBusy(false);
       return;
     }
-    const next = instructorMode ? "/admin/enrollments" : "/student/dashboard";
+    const next = instructorMode ? "/admin/enrollments" : "/enroll?reason=payment";
     // Store next in cookies so redirectTo can be an exact allowlisted URL (no ?next=).
+    // Callback will upgrade paid students to /student/dashboard.
     document.cookie = `ld_oauth_next=${encodeURIComponent(next)}; Path=/; Max-Age=600; SameSite=Lax`;
     document.cookie = `ld_oauth_role=${instructorMode ? "instructor" : "student"}; Path=/; Max-Age=600; SameSite=Lax`;
     const redirectTo = `${window.location.origin}/auth/callback`;

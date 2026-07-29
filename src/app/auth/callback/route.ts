@@ -110,7 +110,7 @@ export async function GET(request: NextRequest) {
   }
 
   let dest = next;
-  if (!wantsInstructor && (next === "/student/dashboard" || next === "/enroll" || next === "/login")) {
+  if (!wantsInstructor) {
     const { data: profile } = await supabase
       .from("profiles")
       .select("role, enrollment_status")
@@ -118,13 +118,19 @@ export async function GET(request: NextRequest) {
       .maybeSingle();
 
     if (profile?.role === "student") {
-      // Always stay on Learn Dispatch studio — never bounce to Client Portal.
-      dest = next === "/enroll" ? "/enroll" : "/student/dashboard";
+      if (profile.enrollment_status === "paid") {
+        dest = "/student/dashboard";
+      } else {
+        // Unpaid / pending — continue payment, not marketing start or empty studio.
+        dest = "/enroll?reason=payment";
+      }
     } else if (await canManageAcademy(user)) {
       dest = "/admin/enrollments";
+    } else if (next.startsWith("/enroll")) {
+      // Mid-enroll Google sign-in — resume account/payment step.
+      dest = "/enroll?continue=account";
     } else {
-      // New Google account with no student profile yet → finish enrollment here.
-      dest = "/enroll";
+      dest = "/enroll?continue=account";
     }
   }
 
