@@ -94,7 +94,13 @@ export default function InstructorInboxClient() {
 
       <section className="h-[min(75vh,720px)] overflow-hidden rounded-2xl border border-[var(--color-border)]">
         {active ? (
-          <WhatsAppChat mode="admin" threadId={active} className="h-full" />
+          <WhatsAppChat
+            mode="admin"
+            threadId={active}
+            apiBase="/api/academy/threads"
+            title="Student conversation"
+            className="h-full"
+          />
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-[var(--color-muted)]">
             Select a student conversation

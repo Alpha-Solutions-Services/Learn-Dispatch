@@ -40,7 +40,9 @@ type Mode = "client" | "admin";
 type Props = {
   mode: Mode;
   threadId?: string | null;
+  /** When set (admin mode), use this base instead of `/api/admin/threads`. */
   apiBase?: string;
+  title?: string;
   currentUserId?: string;
   onComposeAssist?: (action: "draft" | "summarize" | "next") => Promise<string | void>;
   className?: string;
@@ -67,10 +69,14 @@ function dayLabel(iso: string) {
 export function WhatsAppChat({
   mode,
   threadId: externalThreadId,
+  apiBase,
+  title,
   currentUserId,
   onComposeAssist,
   className,
 }: Props) {
+  const adminMessagesUrl = (id: string) =>
+    `${apiBase ?? "/api/admin/threads"}/${id}/messages`;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [threadId, setThreadId] = useState<string | null>(externalThreadId ?? null);
   const [text, setText] = useState("");
@@ -96,7 +102,7 @@ export function WhatsAppChat({
     try {
       const url =
         mode === "admin"
-          ? `/api/admin/threads/${externalThreadId}/messages`
+          ? adminMessagesUrl(externalThreadId!)
           : "/api/dm";
       const res = await fetch(url);
       const json = (await res.json()) as {
@@ -112,7 +118,7 @@ export function WhatsAppChat({
     } finally {
       setLoading(false);
     }
-  }, [mode, externalThreadId]);
+  }, [mode, externalThreadId, apiBase]);
 
   useEffect(() => {
     void load();
@@ -213,7 +219,7 @@ export function WhatsAppChat({
 
       const url =
         mode === "admin"
-          ? `/api/admin/threads/${externalThreadId}/messages`
+          ? adminMessagesUrl(externalThreadId!)
           : "/api/dm";
       const res = await fetch(url, {
         method: "POST",
@@ -281,7 +287,7 @@ export function WhatsAppChat({
             className="font-semibold text-[var(--color-text)]"
             style={{ fontFamily: "var(--font-display), sans-serif" }}
           >
-            {mode === "admin" ? "Client conversation" : "Messages"}
+            {title ?? (mode === "admin" ? "Client conversation" : "Messages")}
           </p>
         </div>
         {mode === "admin" && onComposeAssist ? (
