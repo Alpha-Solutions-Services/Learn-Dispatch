@@ -52,9 +52,7 @@ async function resolveAfterLogin(): Promise<string> {
     return "/admin/enrollments";
   }
   if (role === "student") {
-    return profile?.enrollment_status === "paid"
-      ? "/student/dashboard"
-      : "/enroll?reason=payment";
+    return "/student/dashboard";
   }
 
   // Academy staff allowlist / portal_staff (not Portal /api/staff)
@@ -64,7 +62,7 @@ async function resolveAfterLogin(): Promise<string> {
     if (body.allowed) return "/admin/enrollments";
   }
 
-  return "/enroll";
+  return "/student/dashboard";
 }
 
 export function LoginForm({ defaultAdmin = false }: { defaultAdmin?: boolean }) {

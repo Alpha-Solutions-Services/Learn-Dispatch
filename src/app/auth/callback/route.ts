@@ -11,7 +11,14 @@ type CookieToSet = {
 };
 
 function safeNextPath(raw: string | null | undefined): string {
-  if (raw && raw.startsWith("/") && !raw.startsWith("//")) return raw;
+  if (!raw) return "/student/dashboard";
+  let value = raw;
+  try {
+    value = decodeURIComponent(raw);
+  } catch {
+    /* keep raw */
+  }
+  if (value.startsWith("/") && !value.startsWith("//")) return value;
   return "/student/dashboard";
 }
 
@@ -111,9 +118,13 @@ export async function GET(request: NextRequest) {
       .maybeSingle();
 
     if (profile?.role === "student") {
-      dest = profile.enrollment_status === "paid" ? "/student/dashboard" : "/enroll";
+      // Always stay on Learn Dispatch studio — never bounce to Client Portal.
+      dest = next === "/enroll" ? "/enroll" : "/student/dashboard";
     } else if (await canManageAcademy(user)) {
       dest = "/admin/enrollments";
+    } else {
+      // New Google account with no student profile yet → finish enrollment here.
+      dest = "/enroll";
     }
   }
 

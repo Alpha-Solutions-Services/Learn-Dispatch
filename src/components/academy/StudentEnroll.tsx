@@ -110,15 +110,23 @@ export default function StudentEnroll({ initialReason }: { initialReason?: strin
         setFormErr("Google sign-in is not configured.");
         return;
       }
-      const origin = window.location.origin;
+      // Exact allowlisted callback only — query params break Supabase Redirect URLs
+      // and fall back to the shared Site URL (Client Portal).
+      document.cookie = `ld_oauth_next=${encodeURIComponent("/enroll")}; Path=/; Max-Age=600; SameSite=Lax`;
+      document.cookie = `ld_oauth_role=student; Path=/; Max-Age=600; SameSite=Lax`;
+      const redirectTo = `${window.location.origin}/auth/callback`;
       const { error: oauthError } = await sb.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${origin}/auth/callback?next=/enroll`,
+          redirectTo,
           queryParams: { prompt: "select_account" },
         },
       });
-      if (oauthError) setFormErr(oauthError.message);
+      if (oauthError) {
+        setFormErr(
+          `${oauthError.message} — add ${redirectTo} in Supabase → Authentication → Redirect URLs (not the portal URL).`,
+        );
+      }
     } finally {
       setGoogleLoading(false);
     }
@@ -154,6 +162,8 @@ export default function StudentEnroll({ initialReason }: { initialReason?: strin
 
       setChallanNo(typeof json.challanNo === "string" ? json.challanNo : null);
       setSubmitted(true);
+      // Land in Learn Dispatch studio (not Client Portal) after signup.
+      router.replace("/student/dashboard?welcome=enrolled");
       router.refresh();
     } catch (ex: unknown) {
       setFormErr(ex instanceof Error ? ex.message : "Unexpected error");
