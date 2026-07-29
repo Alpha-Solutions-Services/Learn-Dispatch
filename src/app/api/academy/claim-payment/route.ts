@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { markChallanPending } from "@/lib/academy/challan";
 import { logPaymentAudit } from "@/lib/academy/academy-db";
 import { createClient } from "@/lib/supabase/server";
 import { getServiceRoleClient } from "@/lib/supabase/service-role";
@@ -57,6 +58,8 @@ export async function POST(_req: NextRequest) {
     actorId: user.id,
     note,
   });
+
+  await markChallanPending(user.id);
 
   return NextResponse.json({ success: true, claimedAt: stamp });
 }

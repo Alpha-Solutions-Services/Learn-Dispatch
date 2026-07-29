@@ -154,6 +154,18 @@ export function AdminEnrollments() {
                   <td className="px-4 py-3">
                     <p className="font-medium text-[var(--color-text)]">{student.fullName || "—"}</p>
                     <p className="text-xs text-[var(--color-muted)]">{student.email}</p>
+                    {student.whatsappPhone ? (
+                      <p className="text-[10px] text-[var(--color-chrome)]">WA {student.whatsappPhone}</p>
+                    ) : null}
+                    {student.batchCode ? (
+                      <p className="text-[10px] text-[var(--color-muted)]">Batch {student.batchCode}</p>
+                    ) : null}
+                    <a
+                      href={`/api/academy/challan?studentId=${student.id}`}
+                      className="mt-1 inline-block text-[10px] font-semibold text-[var(--color-accent)] hover:underline"
+                    >
+                      Download challan
+                    </a>
                   </td>
                   <td className="px-4 py-3 text-[var(--color-muted)]">
                     {planLabel(student.enrollmentPlan)}

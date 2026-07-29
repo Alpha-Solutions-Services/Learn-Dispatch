@@ -6,10 +6,10 @@
 
 ## Payment (manual — for now)
 
-- **NayaPay:** `03217112944`
+- **NayaPay (company):** Imran Qamar Sandhu · `03216443914` · IBAN `PK34NAYA1234503216443914` · ID `imran.qamar7093@nayapay`
 - **Monthly:** PKR 20,000
 - **2-month bundle:** PKR 34,000
-- Students tap **I have paid** after transfer; staff verify at `/admin/enrollments`
+- Fees are **non-refundable**. Students get a downloadable fee challan; staff verify at `/admin/enrollments`
 
 ## Vercel
 

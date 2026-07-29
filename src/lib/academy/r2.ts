@@ -63,7 +63,7 @@ function candidateKeys(videoUrl: string): string[] {
   } else {
     keys.push(`Lectures/${base}`);
   }
-  return [...new Set(keys)];
+  return Array.from(new Set(keys));
 }
 
 async function resolveExistingKey(

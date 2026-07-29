@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Loader2, PlayCircle } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Loader2, PlayCircle, RefreshCw } from "lucide-react";
 
 type VideoPayload =
   | { provider: "r2"; signedUrl: string; expiresIn: number }
@@ -11,13 +11,17 @@ type VideoPayload =
 export function GatedVideoPlayer({ moduleId }: { moduleId: string }) {
   const [payload, setPayload] = useState<VideoPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [playError, setPlayError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [reloadKey, setReloadKey] = useState(0);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
       setLoading(true);
       setError(null);
+      setPlayError(null);
       try {
         const res = await fetch(`/api/modules/${moduleId}/video`);
         const body = (await res.json()) as VideoPayload & { error?: string };
@@ -33,7 +37,7 @@ export function GatedVideoPlayer({ moduleId }: { moduleId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [moduleId]);
+  }, [moduleId, reloadKey]);
 
   if (loading) {
     return (
@@ -47,6 +51,13 @@ export function GatedVideoPlayer({ moduleId }: { moduleId: string }) {
     return (
       <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-6 text-sm text-red-200">
         {error}
+        <button
+          type="button"
+          className="mt-3 flex items-center gap-2 text-xs text-[var(--color-accent)]"
+          onClick={() => setReloadKey((k) => k + 1)}
+        >
+          <RefreshCw className="h-3.5 w-3.5" /> Retry
+        </button>
       </div>
     );
   }
@@ -81,18 +92,40 @@ export function GatedVideoPlayer({ moduleId }: { moduleId: string }) {
   return (
     <div className="overflow-hidden rounded-2xl border border-[var(--color-border)] bg-black">
       <video
+        key={payload.signedUrl}
+        ref={videoRef}
         className="aspect-video w-full"
         controls
         controlsList="nodownload"
         playsInline
+        preload="metadata"
+        crossOrigin="anonymous"
         src={payload.signedUrl}
+        onError={() =>
+          setPlayError(
+            "Playback failed. Usually R2 CORS is missing — in Cloudflare R2 → learndispatch → Settings → CORS, allow https://learndispatch.alphasolutions.software for GET/HEAD. Then refresh.",
+          )
+        }
       >
         Your browser does not support video playback.
       </video>
-      <p className="border-t border-[var(--color-border)] bg-[var(--color-surface)]/80 px-3 py-2 text-[10px] uppercase tracking-wider text-[var(--color-muted)]">
-        Secure link expires in ~{Math.round(payload.expiresIn / 60)} minutes — refresh the page to
-        renew.
-      </p>
+      {playError ? (
+        <p className="border-t border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+          {playError}
+        </p>
+      ) : (
+        <p className="border-t border-[var(--color-border)] bg-[var(--color-surface)]/80 px-3 py-2 text-[10px] uppercase tracking-wider text-[var(--color-muted)]">
+          Secure link expires in ~{Math.round(payload.expiresIn / 60)} minutes — refresh the page to
+          renew.
+        </p>
+      )}
+      <button
+        type="button"
+        className="flex w-full items-center justify-center gap-2 border-t border-[var(--color-border)] py-2 text-xs text-[var(--color-accent)]"
+        onClick={() => setReloadKey((k) => k + 1)}
+      >
+        <RefreshCw className="h-3.5 w-3.5" /> Renew secure link
+      </button>
     </div>
   );
 }

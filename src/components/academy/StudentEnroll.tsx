@@ -6,8 +6,7 @@ import { useEffect, useState } from "react";
 import { BadgeCheck, Sparkles } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import {
-  NAYAPAY_DISPLAY,
-  NAYAPAY_NUMBER,
+  NAYAPAY,
   PLAN_PRICING,
   planAmountDisplay,
   type EnrollmentPlan,
@@ -35,6 +34,7 @@ export default function StudentEnroll({ initialReason }: { initialReason?: strin
   const [plan, setPlan] = useState<EnrollmentPlan>("lifetime");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [whatsapp, setWhatsapp] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [formErr, setFormErr] = useState<string | null>(null);
@@ -43,6 +43,7 @@ export default function StudentEnroll({ initialReason }: { initialReason?: strin
   const [linkExistingAccount, setLinkExistingAccount] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [challanNo, setChallanNo] = useState<string | null>(null);
   const [claiming, setClaiming] = useState(false);
   const [claimed, setClaimed] = useState(false);
 
@@ -67,6 +68,11 @@ export default function StudentEnroll({ initialReason }: { initialReason?: strin
 
   async function validateAndContinue() {
     setFormErr(null);
+    const phone = whatsapp.replace(/[\s-]/g, "");
+    if (phone.length < 10) {
+      setFormErr("Enter a valid WhatsApp number (with country code, e.g. 92300…).");
+      return;
+    }
     if (!oauthUserId) {
       if (password !== confirm || password.length < 8) {
         setFormErr("Passwords must match and be at least 8 characters.");
@@ -128,8 +134,8 @@ export default function StudentEnroll({ initialReason }: { initialReason?: strin
           : "/api/academy/complete-enrollment";
       const body =
         oauthUserId || linkExistingAccount
-          ? { plan, name, email }
-          : { plan, name, email, password };
+          ? { plan, name, email, whatsapp: whatsapp.replace(/[\s-]/g, "") }
+          : { plan, name, email, password, whatsapp: whatsapp.replace(/[\s-]/g, "") };
 
       const res = await fetch(endpoint, {
         method: "POST",
@@ -146,6 +152,7 @@ export default function StudentEnroll({ initialReason }: { initialReason?: strin
         if (supabase) await supabase.auth.signInWithPassword({ email, password });
       }
 
+      setChallanNo(typeof json.challanNo === "string" ? json.challanNo : null);
       setSubmitted(true);
       router.refresh();
     } catch (ex: unknown) {
@@ -174,12 +181,15 @@ export default function StudentEnroll({ initialReason }: { initialReason?: strin
     <div className="mt-6 space-y-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)]/50 p-4 text-left text-sm text-[var(--color-muted)]">
       <p>
         Send <strong className="text-[var(--color-text)]">{PLAN_PRICING[plan].amountDisplay}</strong> via{" "}
-        <strong className="text-[var(--color-text)]">NayaPay</strong> to:
+        <strong className="text-[var(--color-text)]">NayaPay</strong> to the company account:
       </p>
-      <p className="text-lg font-bold tracking-wide text-[var(--color-accent)]">{NAYAPAY_DISPLAY}</p>
-      <p className="text-xs">Account number: {NAYAPAY_NUMBER}</p>
+      <p className="font-semibold text-[var(--color-text)]">{NAYAPAY.accountTitle}</p>
+      <p className="text-lg font-bold tracking-wide text-[var(--color-accent)]">{NAYAPAY.accountDisplay}</p>
+      <p className="text-xs">NayaPay ID: {NAYAPAY.id}</p>
+      <p className="text-xs">IBAN: {NAYAPAY.iban}</p>
       <p>
-        Use your <strong className="text-[var(--color-text)]">full name</strong> in the transfer note so our team can match your payment.
+        Use your <strong className="text-[var(--color-text)]">full name</strong> + challan number in
+        the transfer note. Fees are <strong className="text-[var(--color-text)]">non-refundable</strong>.
       </p>
     </div>
   );
@@ -212,6 +222,17 @@ export default function StudentEnroll({ initialReason }: { initialReason?: strin
             Your account is ready. Pay <strong className="text-[var(--color-text)]">{planAmountDisplay(plan)}</strong> via NayaPay, then mark as paid below. Our team will verify and activate your dashboard.
           </p>
           {paymentInstructions}
+          {challanNo ? (
+            <p className="mt-3 text-xs text-[var(--color-chrome)]">
+              Challan: <strong className="text-[var(--color-text)]">{challanNo}</strong>
+            </p>
+          ) : null}
+          <a
+            href="/api/academy/challan"
+            className="mt-3 inline-flex w-full items-center justify-center rounded-lg border border-[var(--color-accent)]/40 px-6 py-3 text-sm font-semibold text-[var(--color-accent)]"
+          >
+            Download fee challan
+          </a>
           {formErr ? <p className="mt-4 text-sm text-red-200">{formErr}</p> : null}
           <button
             type="button"
@@ -354,6 +375,20 @@ export default function StudentEnroll({ initialReason }: { initialReason?: strin
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
+              <label className="block text-xs text-[var(--color-muted)]">
+                WhatsApp number (with country code)
+              </label>
+              <input
+                required
+                type="tel"
+                placeholder="923001234567"
+                className="w-full rounded-lg border border-[var(--color-border)] bg-[#050912] px-3 py-2 text-[var(--color-text)]"
+                value={whatsapp}
+                onChange={(e) => setWhatsapp(e.target.value)}
+              />
+              <p className="text-[10px] text-[var(--color-muted)]">
+                Required for monthly batch follow-up (Google sign-up included).
+              </p>
               {!oauthUserId ? (
                 <>
                   <label className="block text-xs text-[var(--color-muted)]">Password · min 8 characters</label>

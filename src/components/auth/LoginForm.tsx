@@ -170,16 +170,41 @@ export function LoginForm({ defaultAdmin = false }: { defaultAdmin?: boolean }) 
           className="text-2xl font-bold text-[var(--color-text)]"
           style={{ fontFamily: "var(--font-display), sans-serif" }}
         >
-          {instructorMode ? "Instructor login" : "Student portal"}
+          Sign in
         </h1>
         <p className="mt-1 text-sm text-[var(--color-accent)]">
           learndispatch.alphasolutions.software
         </p>
-        <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-100">
-          If you see &quot;Client portal&quot;, you are on the wrong site. Close it and open this
-          Learn Dispatch page instead.
-        </p>
       </div>
+
+      <div className="mb-6 grid grid-cols-2 gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)]/60 p-1">
+        <Link
+          href="/login"
+          className={
+            instructorMode
+              ? "rounded-lg px-3 py-2 text-center text-xs font-semibold text-[var(--color-muted)]"
+              : "rounded-lg bg-[var(--color-accent)] px-3 py-2 text-center text-xs font-bold text-[#05080f]"
+          }
+        >
+          Student
+        </Link>
+        <Link
+          href="/login?role=instructor"
+          className={
+            instructorMode
+              ? "rounded-lg bg-[var(--color-accent)] px-3 py-2 text-center text-xs font-bold text-[#05080f]"
+              : "rounded-lg px-3 py-2 text-center text-xs font-semibold text-[var(--color-muted)]"
+          }
+        >
+          Instructor
+        </Link>
+      </div>
+
+      <p className="mb-4 text-center text-xs text-[var(--color-muted)]">
+        {instructorMode
+          ? "Instructor / staff verification desk"
+          : "Student studio access after payment verification"}
+      </p>
 
       <form onSubmit={(e) => void onSubmit(e)} className="space-y-4">
         <input
@@ -225,15 +250,6 @@ export function LoginForm({ defaultAdmin = false }: { defaultAdmin?: boolean }) 
           </Link>
         </p>
       ) : null}
-
-      <p className="mt-6 text-center text-xs text-[var(--color-muted)]">
-        <Link
-          href={instructorMode ? "/login" : "/login?role=instructor"}
-          className="text-[var(--color-accent)] hover:underline"
-        >
-          {instructorMode ? "Student login" : "Instructor login"}
-        </Link>
-      </p>
     </div>
   );
 }

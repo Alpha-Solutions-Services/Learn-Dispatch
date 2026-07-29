@@ -1,4 +1,5 @@
 import { getServiceRoleClient } from "@/lib/supabase/service-role";
+import { markChallanPaid } from "@/lib/academy/challan";
 import { sanitizeText } from "./api-security";
 
 export type AcademyStudentRow = {
@@ -13,10 +14,12 @@ export type AcademyStudentRow = {
   paymentMethod: string | null;
   paidUntil: string | null;
   paymentReference: string | null;
+  whatsappPhone: string | null;
+  batchCode: string | null;
 };
 
 const STUDENT_SELECT =
-  "id,email,full_name,enrollment_status,enrollment_plan,enrolled_at,payment_confirmed_at,payment_notes,payment_method,paid_until,payment_reference";
+  "id,email,full_name,enrollment_status,enrollment_plan,enrolled_at,payment_confirmed_at,payment_notes,payment_method,paid_until,payment_reference,whatsapp_phone,batch_code";
 
 function mapStudentRow(row: Record<string, unknown>): AcademyStudentRow {
   return {
@@ -31,6 +34,8 @@ function mapStudentRow(row: Record<string, unknown>): AcademyStudentRow {
     paymentMethod: (row.payment_method as string) ?? null,
     paidUntil: (row.paid_until as string) ?? null,
     paymentReference: (row.payment_reference as string) ?? null,
+    whatsappPhone: (row.whatsapp_phone as string) ?? null,
+    batchCode: (row.batch_code as string) ?? null,
   };
 }
 
@@ -131,6 +136,10 @@ export async function setStudentEnrollmentStatus(params: {
     actorId: params.confirmedBy,
     note: params.notes,
   });
+
+  if (params.status === "paid") {
+    await markChallanPaid(params.studentId, params.confirmedBy);
+  }
 
   return mapStudentRow(data as Record<string, unknown>);
 }

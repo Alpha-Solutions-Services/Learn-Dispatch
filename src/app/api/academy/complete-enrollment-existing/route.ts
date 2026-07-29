@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { createFeeChallan } from "@/lib/academy/challan";
 import { sendStudentWelcomeEmail } from "@/lib/academy/emails";
 import { planAmountDisplay, type EnrollmentPlan } from "@/lib/academy/pricing";
 import { getServiceRoleClient } from "@/lib/supabase/service-role";
@@ -10,6 +11,7 @@ const schema = z.object({
   email: z.string().email(),
   name: z.string().min(2),
   plan: z.enum(["monthly", "lifetime"]),
+  whatsapp: z.string().min(10).max(20),
 });
 
 export async function POST(req: NextRequest) {
@@ -72,6 +74,7 @@ export async function POST(req: NextRequest) {
         enrollment_plan: body.plan,
         enrolled_at: new Date().toISOString(),
         payment_method: "naya_pay",
+        whatsapp_phone: body.whatsapp.trim(),
       },
       { onConflict: "id" },
     );
@@ -87,13 +90,27 @@ export async function POST(req: NextRequest) {
       .catch(() => {});
 
     const plan = body.plan as EnrollmentPlan;
+    const challan = await createFeeChallan({
+      studentId: user.id,
+      plan,
+      studentName: body.name.trim(),
+      studentEmail: normalizedEmail,
+      whatsappPhone: body.whatsapp.trim(),
+    });
+
     await sendStudentWelcomeEmail(
       normalizedEmail,
       body.name.trim(),
       `${planAmountDisplay(plan)} (pending verification)`,
     ).catch(() => {});
 
-    return NextResponse.json({ success: true, userId: user.id, pendingPayment: true });
+    return NextResponse.json({
+      success: true,
+      userId: user.id,
+      pendingPayment: true,
+      challanNo: challan?.challan_no ?? null,
+      challanId: challan?.id ?? null,
+    });
   } catch (e) {
     if (e instanceof z.ZodError) {
       return NextResponse.json({ error: "Invalid payload" }, { status: 400 });

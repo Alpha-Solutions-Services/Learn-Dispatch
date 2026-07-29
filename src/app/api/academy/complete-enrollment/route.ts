@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { verifyPasswordForEmail } from "@/lib/auth/verify-password-for-email";
+import { createFeeChallan } from "@/lib/academy/challan";
 import { sendStudentWelcomeEmail } from "@/lib/academy/emails";
 import { planAmountDisplay, type EnrollmentPlan } from "@/lib/academy/pricing";
 import { getServiceRoleClient } from "@/lib/supabase/service-role";
@@ -10,6 +11,7 @@ const schema = z.object({
   password: z.string().min(8),
   name: z.string().min(2),
   plan: z.enum(["monthly", "lifetime"]),
+  whatsapp: z.string().min(10).max(20),
 });
 
 export async function POST(req: NextRequest) {
@@ -42,6 +44,7 @@ export async function POST(req: NextRequest) {
       enrollment_plan: body.plan,
       enrolled_at: new Date().toISOString(),
       payment_method: "naya_pay" as const,
+      whatsapp_phone: body.whatsapp.trim(),
     };
 
     let userId: string;
@@ -129,6 +132,14 @@ export async function POST(req: NextRequest) {
     }
 
     const plan = body.plan as EnrollmentPlan;
+    const challan = await createFeeChallan({
+      studentId: userId,
+      plan,
+      studentName: body.name.trim(),
+      studentEmail: normalizedEmail,
+      whatsappPhone: body.whatsapp.trim(),
+    });
+
     try {
       await sendStudentWelcomeEmail(
         normalizedEmail,
@@ -139,7 +150,13 @@ export async function POST(req: NextRequest) {
       console.error("[complete-enrollment] welcome email", mailErr);
     }
 
-    return NextResponse.json({ success: true, userId, pendingPayment: true });
+    return NextResponse.json({
+      success: true,
+      userId,
+      pendingPayment: true,
+      challanNo: challan?.challan_no ?? null,
+      challanId: challan?.id ?? null,
+    });
   } catch (e) {
     if (e instanceof z.ZodError) {
       return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
