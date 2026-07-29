@@ -14,8 +14,8 @@ export const dynamic = "force-dynamic";
 
 const links = [
   { href: "/admin/enrollments", label: "Payments", icon: GraduationCap },
-  { href: "/admin/inbox", label: "Student chat", icon: MessageCircle },
-  { href: "/admin/assistant", label: "AI assist", icon: Sparkles },
+  { href: "/admin/inbox", label: "Student messages", icon: MessageCircle },
+  { href: "/admin/assistant", label: "AI assistant", icon: Sparkles },
   { href: "/admin/quizzes", label: "Assign quizzes", icon: ClipboardList },
   { href: "/admin/certificates", label: "Certificates", icon: Award },
 ];
