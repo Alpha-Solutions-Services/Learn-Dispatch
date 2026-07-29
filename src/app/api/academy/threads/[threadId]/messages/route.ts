@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAcademyStaff } from "@/lib/academy/staff-auth";
 import { getStudentDmThread } from "@/lib/academy/student-threads";
-import { notifyClientAdminMessage } from "@/lib/email/dm-notify";
+import { notifyStudentInstructorReply } from "@/lib/academy/emails";
 import { createClient } from "@/lib/supabase/server";
 import { getServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -138,8 +138,8 @@ export async function POST(
 
   const notifyEmail = owned.thread.client_email;
   if (notifyEmail) {
-    void notifyClientAdminMessage({
-      clientEmail: notifyEmail,
+    void notifyStudentInstructorReply({
+      studentEmail: notifyEmail,
       preview: body || parsed.attachment_name || "[image]",
     });
   }

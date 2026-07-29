@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "AI assistant — Learn Dispatch",
+  title: "Study assistant — Learn Dispatch",
 };
 
 export default async function StudentAssistantPage() {
@@ -21,7 +21,7 @@ export default async function StudentAssistantPage() {
   if (!isPaidAccessActive(access)) redirect("/enroll?reason=payment");
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
+    <main className="mx-auto max-w-3xl px-4 pb-28 pt-6 sm:px-6 md:pb-10 md:pt-8">
       <h1
         className="text-2xl font-bold text-[var(--color-text)]"
         style={{ fontFamily: "var(--font-display)" }}
@@ -29,11 +29,11 @@ export default async function StudentAssistantPage() {
         Study assistant
       </h1>
       <p className="mt-2 text-sm text-[var(--color-muted)]">
-        Ask about dispatch concepts, paperwork, or how to use a module. Powered by Groq — not a
-        substitute for your instructor.
+        Ask about dispatch concepts, paperwork, or how to use a module. For personal coaching, use
+        Instructor chat.
       </p>
       <div className="mt-6 min-h-[520px] overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]/40">
-        <AiChatPanel />
+        <AiChatPanel variant="student" />
       </div>
     </main>
   );

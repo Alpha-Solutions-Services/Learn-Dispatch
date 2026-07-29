@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { certificateHtml } from "@/lib/academy/certificate";
+import { sendCertificateIssuedEmail } from "@/lib/academy/emails";
 import { requireAcademyStaff } from "@/lib/academy/staff-auth";
 import { createClient } from "@/lib/supabase/server";
 import { getServiceRoleClient } from "@/lib/supabase/service-role";
@@ -120,6 +121,15 @@ export async function POST(req: NextRequest) {
       console.error("[certificates]", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    if (row.student_email) {
+      void sendCertificateIssuedEmail({
+        studentEmail: row.student_email,
+        studentName: row.student_name,
+        certificateNo: row.certificate_no,
+      });
+    }
+
     return NextResponse.json({ ok: true, certificate: data });
   } catch (e) {
     if (e instanceof z.ZodError) {

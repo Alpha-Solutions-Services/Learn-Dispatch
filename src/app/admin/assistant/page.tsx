@@ -4,7 +4,7 @@ import { AiChatPanel } from "@/components/ai/AiChatPanel";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "AI assist — Learn Dispatch Instructor",
+  title: "AI assistant — Learn Dispatch Instructor",
 };
 
 export default function AdminAssistantPage() {
@@ -17,11 +17,10 @@ export default function AdminAssistantPage() {
         Instructor AI assist
       </h1>
       <p className="mt-2 text-sm text-[var(--color-muted)]">
-        Draft replies, explain modules, or summarize student questions. Lives on Learn Dispatch —
-        not the Client Portal.
+        Draft student replies, explain modules, or plan quizzes. Separate from Client Portal chat.
       </p>
       <div className="mt-6 min-h-[520px] overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]/40">
-        <AiChatPanel />
+        <AiChatPanel variant="instructor" />
       </div>
     </main>
   );

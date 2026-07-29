@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { notifyOpsNewClientMessage } from "@/lib/email/dm-notify";
+import { notifyInstructorStudentMessage } from "@/lib/academy/emails";
 import { getSessionUser } from "@/lib/portal/require-session";
 import { createClient } from "@/lib/supabase/server";
 import { getServiceRoleClient } from "@/lib/supabase/service-role";
@@ -151,8 +151,19 @@ export async function POST(req: NextRequest) {
     .eq("id", threadId);
 
   const preview = body || parsed.attachment_name || "[image]";
-  void notifyOpsNewClientMessage({
-    clientEmail: session.user.email,
+  const admin = getServiceRoleClient();
+  let studentName: string | null = null;
+  if (admin) {
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("full_name")
+      .eq("id", session.user.id)
+      .maybeSingle();
+    studentName = (profile?.full_name as string) || null;
+  }
+  void notifyInstructorStudentMessage({
+    studentEmail: session.user.email,
+    studentName,
     preview,
     threadId,
   });

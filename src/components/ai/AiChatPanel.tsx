@@ -11,7 +11,40 @@ type Msg = {
   is_human?: boolean;
 };
 
-export function AiChatPanel() {
+type Variant = "student" | "instructor" | "portal";
+
+const COPY: Record<
+  Variant,
+  { title: string; subtitle: string; empty: string; placeholder: string; api: string; audience?: string }
+> = {
+  student: {
+    title: "Study assistant",
+    subtitle: "Dispatch training help for your modules — not a substitute for your instructor.",
+    empty: "Ask about a module, paperwork, load boards, quizzes, or how to use Learn Dispatch.",
+    placeholder: "Ask about your training…",
+    api: "/api/academy/ai/chat",
+    audience: "student",
+  },
+  instructor: {
+    title: "Instructor assist",
+    subtitle: "Draft student replies, explain modules, or plan quiz follow-ups.",
+    empty: "Ask for a draft reply, module summary, or quiz coaching tip for your students.",
+    placeholder: "How can I help with teaching…",
+    api: "/api/academy/ai/chat",
+    audience: "instructor",
+  },
+  portal: {
+    title: "Alpha Assistant",
+    subtitle: "Guided support for requirements, projects, and tickets.",
+    empty:
+      "Tell me what you need — a website, app, automation, or help with an existing project.",
+    placeholder: "Describe what you need…",
+    api: "/api/ai/chat",
+  },
+};
+
+export function AiChatPanel({ variant = "portal" }: { variant?: Variant }) {
+  const copy = COPY[variant];
   const [messages, setMessages] = useState<Msg[]>([]);
   const [conversationId, setConversationId] = useState<string | undefined>();
   const [humanJoined, setHumanJoined] = useState(false);
@@ -25,7 +58,7 @@ export function AiChatPanel() {
   }, [messages, humanJoined]);
 
   useEffect(() => {
-    if (!conversationId) return;
+    if (!conversationId || variant === "student" || variant === "instructor") return;
     const id = window.setInterval(() => {
       void fetch(`/api/ai/conversations?id=${conversationId}`)
         .then((r) => r.json())
@@ -47,15 +80,15 @@ export function AiChatPanel() {
                     role: m.role as "user" | "assistant",
                     content: m.content,
                     is_human: m.is_human,
-                  }))
+                  })),
               );
             }
-          }
+          },
         )
         .catch(() => {});
     }, 8000);
     return () => window.clearInterval(id);
-  }, [conversationId]);
+  }, [conversationId, variant]);
 
   async function send() {
     const message = text.trim();
@@ -65,10 +98,14 @@ export function AiChatPanel() {
     setText("");
     setMessages((m) => [...m, { role: "user", content: message }]);
     try {
-      const res = await fetch("/api/ai/chat", {
+      const res = await fetch(copy.api, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, conversationId }),
+        body: JSON.stringify({
+          message,
+          conversationId,
+          ...(copy.audience ? { audience: copy.audience } : {}),
+        }),
       });
       const json = (await res.json()) as {
         reply?: string;
@@ -103,16 +140,14 @@ export function AiChatPanel() {
             style={{ fontFamily: "var(--font-display), sans-serif" }}
           >
             <Sparkles className="h-4 w-4 text-[var(--color-accent)]" />
-            Alpha Assistant
+            {copy.title}
           </p>
-          <p className="mt-1 text-xs text-[var(--color-muted)]">
-            Guided support for requirements, projects, and tickets.
-          </p>
+          <p className="mt-1 text-xs text-[var(--color-muted)]">{copy.subtitle}</p>
         </div>
         {humanJoined ? (
           <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-1 text-[11px] font-semibold text-emerald-300">
             <UserRound className="h-3.5 w-3.5" />
-            Human agent here
+            Instructor here
           </span>
         ) : null}
       </div>
@@ -120,10 +155,7 @@ export function AiChatPanel() {
       <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
         {messages.length === 0 ? (
           <div className="space-y-3 py-10 text-center">
-            <p className="text-sm text-[var(--color-muted)]">
-              Tell me what you need — a website, app, automation, or help with an
-              existing project. I will guide you and suggest a ticket if needed.
-            </p>
+            <p className="text-sm text-[var(--color-muted)]">{copy.empty}</p>
           </div>
         ) : (
           <AnimatePresence initial={false}>
@@ -138,7 +170,7 @@ export function AiChatPanel() {
                     ? "ml-auto bg-[var(--color-accent)] text-[#05080f]"
                     : m.is_human
                       ? "mr-auto border border-emerald-500/40 bg-emerald-500/10 text-[var(--color-text)]"
-                      : "mr-auto border border-[var(--color-border)] bg-[var(--color-surface-2)] text-[var(--color-text)]"
+                      : "mr-auto border border-[var(--color-border)] bg-[var(--color-surface-2)] text-[var(--color-text)]",
                 )}
               >
                 {m.role === "assistant" && m.is_human ? (
@@ -163,7 +195,7 @@ export function AiChatPanel() {
           onKeyDown={(e) => {
             if (e.key === "Enter") void send();
           }}
-          placeholder="Describe what you need…"
+          placeholder={copy.placeholder}
           className="flex-1 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-2.5 text-sm text-[var(--color-text)] outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
         />
         <button

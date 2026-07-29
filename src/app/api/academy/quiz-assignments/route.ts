@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { sendQuizAssignedEmail } from "@/lib/academy/emails";
 import { requireAcademyStaff } from "@/lib/academy/staff-auth";
 import { createClient } from "@/lib/supabase/server";
 import { getServiceRoleClient } from "@/lib/supabase/service-role";
@@ -66,6 +67,29 @@ export async function POST(req: NextRequest) {
       console.error("[quiz-assign]", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    const [{ data: student }, { data: mod }] = await Promise.all([
+      admin
+        .from("profiles")
+        .select("email, full_name")
+        .eq("id", body.studentId)
+        .maybeSingle(),
+      admin
+        .from("academy_modules")
+        .select("title")
+        .eq("id", body.moduleId)
+        .maybeSingle(),
+    ]);
+    if (student?.email) {
+      void sendQuizAssignedEmail({
+        studentEmail: student.email as string,
+        studentName: (student.full_name as string) || "Student",
+        moduleTitle: (mod?.title as string) || "Module quiz",
+        note: body.note,
+        dueAt: body.dueAt,
+      });
+    }
+
     return NextResponse.json({ ok: true, assignment: data });
   } catch (e) {
     if (e instanceof z.ZodError) {

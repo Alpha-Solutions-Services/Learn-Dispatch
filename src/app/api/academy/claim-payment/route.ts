@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { markChallanPending } from "@/lib/academy/challan";
 import { logPaymentAudit } from "@/lib/academy/academy-db";
+import { sendPaymentClaimedEmail } from "@/lib/academy/emails";
 import { createClient } from "@/lib/supabase/server";
 import { getServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -25,7 +26,7 @@ export async function POST(_req: NextRequest) {
 
   const { data: profile } = await admin
     .from("profiles")
-    .select("role, enrollment_status, payment_notes")
+    .select("role, enrollment_status, payment_notes, full_name, email")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -60,6 +61,11 @@ export async function POST(_req: NextRequest) {
   });
 
   await markChallanPending(user.id);
+
+  void sendPaymentClaimedEmail({
+    studentEmail: (profile?.email as string) || user.email || "",
+    studentName: (profile?.full_name as string) || "Student",
+  });
 
   return NextResponse.json({ success: true, claimedAt: stamp });
 }

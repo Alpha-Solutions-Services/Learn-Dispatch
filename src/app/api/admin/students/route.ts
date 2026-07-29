@@ -4,6 +4,7 @@ import {
   listAcademyStudents,
   setStudentEnrollmentStatus,
 } from "@/lib/academy/academy-db";
+import { sendPaymentClearedEmail } from "@/lib/academy/emails";
 import { requireAcademyStaff } from "@/lib/academy/staff-auth";
 import { createClient } from "@/lib/supabase/server";
 
@@ -53,6 +54,13 @@ export async function PATCH(req: NextRequest) {
     });
     if (!updated) {
       return NextResponse.json({ error: "Student not found" }, { status: 404 });
+    }
+    if (body.status === "paid" && updated.email) {
+      void sendPaymentClearedEmail({
+        studentEmail: updated.email,
+        studentName: updated.fullName,
+        planSummary: updated.enrollmentPlan || undefined,
+      });
     }
     return NextResponse.json({ ok: true, student: updated });
   } catch (e) {

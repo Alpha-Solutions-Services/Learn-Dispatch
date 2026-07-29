@@ -1,6 +1,7 @@
 import Groq from "groq-sdk";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { canManageAcademy } from "@/lib/academy/staff-auth";
 import { isPortalStaff } from "@/lib/admin-auth";
 import { getSessionUser } from "@/lib/portal/require-session";
 import { getServiceRoleClient } from "@/lib/supabase/service-role";
@@ -20,7 +21,10 @@ function getGroq() {
 export async function POST(req: NextRequest) {
   const session = await getSessionUser();
   if ("error" in session) return session.error;
-  if (!(await isPortalStaff(session.user))) {
+  if (
+    !(await isPortalStaff(session.user)) &&
+    !(await canManageAcademy(session.user))
+  ) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -57,7 +61,7 @@ export async function POST(req: NextRequest) {
         .filter((m) => !m.deleted_at)
         .map(
           (m) =>
-            `${m.is_admin ? "Admin" : "Client"}: ${m.body || "[attachment]"}`
+            `${m.is_admin ? "Instructor" : "Student"}: ${m.body || "[attachment]"}`
         )
         .join("\n") || "(empty thread)";
   } else if (parsed.inquiryId) {
@@ -93,7 +97,7 @@ BODY:
       {
         role: "system",
         content:
-          "You help Alpha Solutions admins. Never claim you already sent a message. Never invent facts. Do not invent pricing or timelines unless present in context.",
+          "You help Learn Dispatch instructors and Alpha Solutions staff. Never mention AI vendors or model names. Never claim you already sent a message. Never invent facts. For student chat drafts, be warm and clear. Do not invent pricing or timelines unless present in context.",
       },
       {
         role: "user",
