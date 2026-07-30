@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { certificateHtml } from "@/lib/academy/certificate";
+import { certificateHtml, computeCertificateHash } from "@/lib/academy/certificate";
 import { sendCertificateIssuedEmail } from "@/lib/academy/emails";
 import { requireAcademyStaff } from "@/lib/academy/staff-auth";
 import { createClient } from "@/lib/supabase/server";
@@ -32,6 +32,7 @@ export async function GET(req: NextRequest) {
   const staff = await requireAcademyStaff(user);
   const studentId = req.nextUrl.searchParams.get("studentId");
   const download = req.nextUrl.searchParams.get("download") === "1";
+  const print = req.nextUrl.searchParams.get("print") === "1";
   const certId = req.nextUrl.searchParams.get("id");
 
   if (download && certId) {
@@ -44,11 +45,16 @@ export async function GET(req: NextRequest) {
     if (!staff.ok && cert.student_id !== user.id) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-    const html = certificateHtml(cert as Parameters<typeof certificateHtml>[0]);
+    const html = certificateHtml(
+      cert as Parameters<typeof certificateHtml>[0],
+      { autoPrint: print },
+    );
     return new NextResponse(html, {
       headers: {
         "Content-Type": "text/html; charset=utf-8",
-        "Content-Disposition": `attachment; filename="${cert.certificate_no}.html"`,
+        "Content-Disposition": print
+          ? "inline"
+          : `inline; filename="${cert.certificate_no}.html"`,
       },
     });
   }
@@ -100,8 +106,18 @@ export async function POST(req: NextRequest) {
       .eq("student_id", body.studentId)
       .eq("status", "completed");
 
+    const issuedAt = new Date().toISOString();
+    const certificate_no = certNo();
+    const integrity_hash = computeCertificateHash({
+      certificate_no,
+      student_email: (profile.email as string) || "",
+      student_name: (profile.full_name as string) || "Student",
+      modules_completed: count ?? 0,
+      issued_at: issuedAt,
+    });
+
     const row = {
-      certificate_no: certNo(),
+      certificate_no,
       student_id: body.studentId,
       student_name: (profile.full_name as string) || "Student",
       student_email: (profile.email as string) || "",
@@ -109,6 +125,8 @@ export async function POST(req: NextRequest) {
       issued_by: auth.user.id,
       modules_completed: count ?? 0,
       note: body.note ?? null,
+      issued_at: issuedAt,
+      integrity_hash,
     };
 
     const { data, error } = await admin

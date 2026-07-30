@@ -59,7 +59,7 @@ export default async function StudentModulePage({ params }: PageProps) {
   const quizScore = progress?.quiz_score as number | null | undefined;
 
   return (
-    <main className="min-h-screen bg-[var(--color-bg)] px-4 pb-24 pt-12 sm:px-6 lg:px-8">
+    <main className="px-4 pb-8 pt-12 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-3xl space-y-8">
         <div>
           <Link

@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import { COURSE } from "@/lib/course/curriculum";
 import { getAppUrl } from "@/lib/supabase/env";
 
@@ -9,26 +10,71 @@ function escapeHtml(s: string) {
     .replace(/"/g, "&quot;");
 }
 
-export function certificateHtml(row: {
+export function computeCertificateHash(input: {
   certificate_no: string;
-  student_name: string;
   student_email: string;
-  batch_code: string | null;
+  student_name: string;
   modules_completed: number;
   issued_at: string;
-}) {
+}): string {
+  const secret =
+    process.env.CERTIFICATE_SIGNING_SECRET?.trim() ||
+    process.env.CRON_SECRET?.trim() ||
+    "learn-dispatch-afn-cert";
+  const payload = [
+    input.certificate_no,
+    input.student_email.trim().toLowerCase(),
+    input.student_name.trim(),
+    String(input.modules_completed),
+    input.issued_at,
+  ].join("|");
+  return createHash("sha256")
+    .update(`${secret}:${payload}`)
+    .digest("hex")
+    .slice(0, 32)
+    .toUpperCase();
+}
+
+export function certificateHtml(
+  row: {
+    certificate_no: string;
+    student_name: string;
+    student_email: string;
+    batch_code: string | null;
+    modules_completed: number;
+    issued_at: string;
+    integrity_hash?: string | null;
+  },
+  opts?: { autoPrint?: boolean },
+) {
   const base = getAppUrl().replace(/\/$/, "");
   const logoUrl = `${base}/alpha-logo.png`;
-  const verifyUrl = `${base}/student/certificates`;
+  const signatureUrl = `${base}/signatures/author-signature.svg`;
+  const verifyUrl = `${base}/verify/${encodeURIComponent(row.certificate_no)}`;
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=148x148&margin=8&bgcolor=0b1220&color=5bc8ff&data=${encodeURIComponent(verifyUrl)}`;
   const issued = new Date(row.issued_at).toLocaleDateString("en-US", {
     year: "numeric",
     month: "long",
     day: "numeric",
   });
+  const hash =
+    row.integrity_hash ||
+    computeCertificateHash({
+      certificate_no: row.certificate_no,
+      student_email: row.student_email,
+      student_name: row.student_name,
+      modules_completed: row.modules_completed,
+      issued_at: row.issued_at,
+    });
   const name = escapeHtml(row.student_name);
   const email = escapeHtml(row.student_email);
   const batch = escapeHtml(row.batch_code || "—");
   const certNo = escapeHtml(row.certificate_no);
+  const hashDisp = escapeHtml(hash);
+  const hoursLine = escapeHtml(COURSE.credentialLine);
+  const autoPrint = opts?.autoPrint
+    ? `<script>window.addEventListener('load',function(){setTimeout(function(){window.print()},400)});</script>`
+    : "";
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -36,8 +82,10 @@ export function certificateHtml(row: {
 <meta charset="utf-8"/>
 <title>Certificate ${certNo}</title>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
 <style>
-  @page { size: landscape; margin: 12mm; }
+  @page { size: A4 landscape; margin: 10mm; }
   * { box-sizing: border-box; }
   body {
     margin: 0;
@@ -45,47 +93,68 @@ export function certificateHtml(row: {
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 24px;
+    padding: 16px;
     background: #05080f;
     color: #edf2f8;
-    font-family: "Segoe UI", system-ui, sans-serif;
+    font-family: "DM Sans", system-ui, sans-serif;
   }
-  .frame {
+  .toolbar {
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    z-index: 20;
+    display: flex;
+    gap: 8px;
+  }
+  .toolbar button, .toolbar a {
+    border: 0;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    background: #38a3ff;
+    color: #05080f;
+  }
+  .toolbar a.secondary { background: #1a2438; color: #cfe6f8; }
+  .sheet {
     position: relative;
-    width: min(960px, 100%);
-    aspect-ratio: 1.414 / 1;
+    width: min(1120px, 100%);
+    aspect-ratio: 297 / 210;
     max-height: 92vh;
-    padding: 18px;
+    overflow: hidden;
     background:
-      radial-gradient(ellipse 80% 60% at 50% 0%, rgba(56,163,255,0.14), transparent 55%),
-      linear-gradient(165deg, #0e1628 0%, #070b14 55%, #05080f 100%);
-    border: 1px solid rgba(56,163,255,0.45);
+      radial-gradient(ellipse 70% 50% at 50% -10%, rgba(56,163,255,0.16), transparent 55%),
+      repeating-linear-gradient(0deg, rgba(56,163,255,0.035) 0 1px, transparent 1px 7px),
+      repeating-linear-gradient(90deg, rgba(56,163,255,0.03) 0 1px, transparent 1px 7px),
+      linear-gradient(165deg, #0e1628 0%, #070b14 60%, #05080f 100%);
+    border: 1px solid rgba(56,163,255,0.5);
     box-shadow: 0 24px 80px rgba(0,0,0,0.55);
   }
-  .frame::before {
-    content: "";
+  .corner {
     position: absolute;
-    inset: 8px;
+    width: 42px;
+    height: 42px;
+    border-color: rgba(91,200,255,0.55);
+    border-style: solid;
+    z-index: 2;
+  }
+  .corner.tl { top: 10px; left: 10px; border-width: 2px 0 0 2px; }
+  .corner.tr { top: 10px; right: 10px; border-width: 2px 2px 0 0; }
+  .corner.bl { bottom: 10px; left: 10px; border-width: 0 0 2px 2px; }
+  .corner.br { bottom: 10px; right: 10px; border-width: 0 2px 2px 0; }
+  .inner-frame {
+    position: absolute;
+    inset: 16px;
     border: 1px solid rgba(91,200,255,0.28);
     pointer-events: none;
   }
-  .frame::after {
-    content: "";
+  .inner-frame-2 {
     position: absolute;
-    inset: 14px;
+    inset: 22px;
     border: 1px solid rgba(56,163,255,0.12);
     pointer-events: none;
-  }
-  .inner {
-    position: relative;
-    z-index: 1;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: space-between;
-    padding: 28px 40px 24px;
-    text-align: center;
   }
   .watermark {
     position: absolute;
@@ -93,26 +162,29 @@ export function certificateHtml(row: {
     display: flex;
     align-items: center;
     justify-content: center;
-    opacity: 0.05;
+    opacity: 0.045;
     pointer-events: none;
-    z-index: 0;
   }
-  .watermark img { width: min(420px, 55%); }
-  .brand {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
+  .watermark img { width: min(460px, 48%); }
+  .content {
+    position: relative;
+    z-index: 3;
+    height: 100%;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    padding: 36px 48px 28px;
+    text-align: center;
   }
   .brand img {
-    width: 72px;
-    height: 72px;
+    width: 68px;
+    height: 68px;
     border-radius: 14px;
-    border: 1px solid rgba(56,163,255,0.35);
+    border: 1px solid rgba(56,163,255,0.4);
     background: #0a101c;
     object-fit: contain;
   }
   .eyebrow {
+    margin: 10px 0 0;
     font-size: 11px;
     letter-spacing: 0.28em;
     text-transform: uppercase;
@@ -120,135 +192,125 @@ export function certificateHtml(row: {
     font-weight: 600;
   }
   h1 {
-    margin: 8px 0 0;
-    font-family: Georgia, "Times New Roman", serif;
-    font-size: clamp(22px, 3.4vw, 34px);
+    margin: 10px 0 0;
+    font-family: "Cormorant Garamond", Georgia, serif;
+    font-size: clamp(26px, 3.6vw, 40px);
     font-weight: 700;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
     color: #fff;
   }
   .course {
     margin: 6px 0 0;
-    font-family: Georgia, serif;
-    font-size: clamp(14px, 1.8vw, 18px);
+    font-family: "Cormorant Garamond", Georgia, serif;
+    font-size: clamp(15px, 2vw, 20px);
     color: #8ec8ef;
   }
-  .attest {
-    margin: 18px 0 0;
-    font-size: 13px;
-    color: #6a8caf;
-    letter-spacing: 0.04em;
+  .hours {
+    margin: 8px 0 0;
+    display: inline-block;
+    padding: 5px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(56,163,255,0.35);
+    background: rgba(56,163,255,0.08);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #a8d4f5;
   }
+  .attest { margin: 18px 0 0; font-size: 13px; color: #6a8caf; letter-spacing: 0.04em; }
   .name {
-    margin: 10px 0 4px;
-    font-family: Georgia, serif;
-    font-size: clamp(28px, 4.5vw, 44px);
+    margin: 8px 0 6px;
+    font-family: "Cormorant Garamond", Georgia, serif;
+    font-size: clamp(30px, 4.8vw, 48px);
     font-weight: 700;
     color: #5bc8ff;
-    line-height: 1.15;
+    line-height: 1.1;
   }
   .completed {
-    margin: 0;
+    margin: 0 auto;
+    max-width: 620px;
     font-size: 14px;
     color: #a8c4dc;
-    max-width: 520px;
-    line-height: 1.5;
+    line-height: 1.55;
   }
-  .meta {
+  .footer {
     display: grid;
-    grid-template-columns: 1fr auto 1fr;
-    gap: 16px;
+    grid-template-columns: 1.1fr auto 1.1fr;
+    gap: 18px;
     align-items: end;
     width: 100%;
-    margin-top: 20px;
+    margin-top: 18px;
   }
-  .sig {
-    text-align: left;
-    border-top: 1px solid rgba(91,200,255,0.35);
-    padding-top: 10px;
-    min-width: 0;
+  .sig { text-align: left; border-top: 1px solid rgba(91,200,255,0.35); padding-top: 8px; }
+  .sig img { height: 42px; width: auto; margin-bottom: 2px; filter: brightness(1.15); }
+  .sig .who { font-family: "Cormorant Garamond", Georgia, serif; font-size: 15px; color: #cfe6f8; }
+  .sig .role { font-size: 11px; color: #6a8caf; margin-top: 2px; }
+  .qr-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .qr-wrap img {
+    width: 96px;
+    height: 96px;
+    border-radius: 10px;
+    border: 1px solid rgba(56,163,255,0.35);
+    background: #0b1220;
   }
-  .sig .who {
-    font-family: Georgia, serif;
-    font-size: 14px;
-    color: #cfe6f8;
-  }
-  .sig .role {
-    font-size: 11px;
-    color: #6a8caf;
-    margin-top: 2px;
-  }
-  .seal {
-    width: 88px;
-    height: 88px;
-    border-radius: 50%;
-    border: 2px solid rgba(56,163,255,0.65);
-    box-shadow: inset 0 0 0 4px rgba(11,18,32,0.9), 0 0 0 1px rgba(91,200,255,0.25);
-    background:
-      radial-gradient(circle at 35% 30%, rgba(91,200,255,0.25), transparent 50%),
-      linear-gradient(145deg, #123056, #0a1528);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    justify-self: center;
-  }
-  .seal strong {
-    font-size: 13px;
-    letter-spacing: 0.12em;
-    color: #5bc8ff;
-  }
-  .seal span {
-    font-size: 9px;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: #8fb4d4;
-    margin-top: 2px;
-  }
-  .ids {
-    text-align: right;
-    font-size: 11px;
-    color: #8fb4d4;
-    line-height: 1.65;
-  }
+  .qr-wrap span { font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: #6a8caf; }
+  .ids { text-align: right; font-size: 11px; color: #8fb4d4; line-height: 1.65; }
   .ids strong { color: #edf2f8; }
-  .verify {
-    margin-top: 14px;
+  .hash {
+    margin-top: 4px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 9px;
+    letter-spacing: 0.04em;
+    color: #5a7a98;
+    word-break: break-all;
+  }
+  .legal {
+    margin-top: 12px;
     font-size: 10px;
     color: #5a7a98;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.06em;
   }
-  .verify a { color: #5bc8ff; text-decoration: none; }
+  .legal a { color: #5bc8ff; text-decoration: none; }
   @media print {
+    .toolbar { display: none !important; }
     body { background: #fff; padding: 0; }
-    .frame {
+    .sheet {
       box-shadow: none;
-      background: #fff;
-      border-color: #1a3a5c;
       max-height: none;
       width: 100%;
+      border-color: #1a3a5c;
+      background:
+        repeating-linear-gradient(0deg, rgba(20,60,100,0.04) 0 1px, transparent 1px 7px),
+        repeating-linear-gradient(90deg, rgba(20,60,100,0.03) 0 1px, transparent 1px 7px),
+        #fff;
     }
-    .frame::before { border-color: #2a5a8a; }
     h1, .name { color: #0b2440; }
     .name { color: #0b4a7a; }
-    .eyebrow, .course, .seal strong { color: #1a6aa8; }
+    .eyebrow, .course, .hours { color: #1a6aa8; }
     .completed, .ids, .sig .who { color: #243447; }
-    .attest, .sig .role, .verify { color: #5a6a7a; }
+    .attest, .sig .role, .legal, .hash, .qr-wrap span { color: #5a6a7a; }
   }
 </style>
 </head>
 <body>
-  <div class="frame">
-    <div class="watermark" aria-hidden="true">
-      <img src="${logoUrl}" alt=""/>
-    </div>
-    <div class="inner">
+  <div class="toolbar">
+    <button type="button" onclick="window.print()">Save / Print PDF</button>
+    <a class="secondary" href="${verifyUrl}">Verify online</a>
+  </div>
+  <div class="sheet">
+    <div class="corner tl"></div><div class="corner tr"></div>
+    <div class="corner bl"></div><div class="corner br"></div>
+    <div class="inner-frame"></div>
+    <div class="inner-frame-2"></div>
+    <div class="watermark" aria-hidden="true"><img src="${logoUrl}" alt=""/></div>
+    <div class="content">
       <div class="brand">
         <img src="${logoUrl}" alt="${escapeHtml(COURSE.brand)}"/>
         <p class="eyebrow">${escapeHtml(COURSE.brand)} · ${escapeHtml(COURSE.product)}</p>
         <h1>Certificate of Completion</h1>
         <p class="course">${escapeHtml(COURSE.title)}</p>
+        <p class="hours">${hoursLine}</p>
       </div>
 
       <div>
@@ -257,34 +319,38 @@ export function certificateHtml(row: {
         <p class="completed">
           has successfully completed the ${escapeHtml(COURSE.title)} program
           (${row.modules_completed} module${row.modules_completed === 1 ? "" : "s"} recorded)
-          under Alpha Freight Network · Learn Dispatch.
+          through Alpha Freight Network · Learn Dispatch.
         </p>
       </div>
 
-      <div style="width:100%">
-        <div class="meta">
+      <div>
+        <div class="footer">
           <div class="sig">
+            <img src="${signatureUrl}" alt="Signature"/>
             <p class="who">${escapeHtml(COURSE.author)}</p>
             <p class="role">Course Author · Instructor of Record</p>
           </div>
-          <div class="seal" aria-hidden="true">
-            <strong>AFN</strong>
-            <span>Verified</span>
+          <div class="qr-wrap">
+            <img src="${qrUrl}" alt="Verification QR"/>
+            <span>Scan to verify</span>
           </div>
           <div class="ids">
             <div>Recipient: <strong>${email}</strong></div>
             <div>Batch: <strong>${batch}</strong></div>
             <div>Certificate No. <strong>${certNo}</strong></div>
             <div>Issued <strong>${escapeHtml(issued)}</strong></div>
+            <div class="hash">Audit hash · ${hashDisp}</div>
           </div>
         </div>
-        <p class="verify">
-          Authenticity · <a href="${verifyUrl}">${escapeHtml(verifyUrl.replace(/^https?:\/\//, ""))}</a>
+        <p class="legal">
+          Issued by Alpha Solutions Services LLC · Alpha Freight Network ·
+          Verify at <a href="${verifyUrl}">${escapeHtml(verifyUrl.replace(/^https?:\/\//, ""))}</a>
           · ${escapeHtml(COURSE.supportEmail)}
         </p>
       </div>
     </div>
   </div>
+  ${autoPrint}
 </body>
 </html>`;
 }

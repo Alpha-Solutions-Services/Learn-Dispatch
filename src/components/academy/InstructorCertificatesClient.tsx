@@ -111,12 +111,20 @@ export default function InstructorCertificatesClient() {
                 {new Date(c.issued_at).toLocaleDateString()}
               </p>
             </div>
-            <a
-              href={`/api/academy/certificates?id=${c.id}&download=1`}
-              className="text-xs font-semibold text-[var(--color-accent)] hover:underline"
-            >
-              Download
-            </a>
+            <div className="flex flex-wrap gap-3">
+              <a
+                href={`/api/academy/certificates?id=${c.id}&download=1`}
+                className="text-xs font-semibold text-[var(--color-accent)] hover:underline"
+              >
+                View
+              </a>
+              <a
+                href={`/api/academy/certificates?id=${c.id}&download=1&print=1`}
+                className="text-xs font-semibold text-[var(--color-muted)] hover:underline"
+              >
+                Save PDF
+              </a>
+            </div>
           </li>
         ))}
       </ul>

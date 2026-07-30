@@ -8,6 +8,10 @@ export const COURSE = {
   tagline:
     "Learn how real US freight dispatchers work — from load boards and rate negotiation to carrier docs, RC/BOL/POD, and broker communication.",
   durationLabel: "Self-paced · ~2 months recommended",
+  /** Shown on certificates */
+  credentialLine: "~40 learning hours · 12 modules",
+  estimatedHours: 40,
+  totalModules: 12,
   supportEmail: "support@freight.alphasolutions.software",
   whatsapp: "https://wa.me/923494206922",
 } as const;

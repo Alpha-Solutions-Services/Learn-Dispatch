@@ -68,12 +68,26 @@ export default function StudentCertificatesClient() {
                   {c.batch_code ? ` · ${c.batch_code}` : ""}
                 </p>
               </div>
-              <a
-                href={`/api/academy/certificates?id=${c.id}&download=1`}
-                className="text-xs font-semibold text-[var(--color-accent)] hover:underline"
-              >
-                Download
-              </a>
+              <div className="flex flex-wrap gap-3">
+                <a
+                  href={`/api/academy/certificates?id=${c.id}&download=1`}
+                  className="text-xs font-semibold text-[var(--color-accent)] hover:underline"
+                >
+                  View
+                </a>
+                <a
+                  href={`/api/academy/certificates?id=${c.id}&download=1&print=1`}
+                  className="text-xs font-semibold text-[var(--color-chrome)] hover:underline"
+                >
+                  Save PDF
+                </a>
+                <a
+                  href={`/verify/${encodeURIComponent(c.certificate_no)}`}
+                  className="text-xs text-[var(--color-muted)] hover:underline"
+                >
+                  Verify
+                </a>
+              </div>
             </li>
           ))}
         </ul>
