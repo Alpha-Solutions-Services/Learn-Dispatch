@@ -8,7 +8,7 @@ import {
 import { getAppUrl } from "@/lib/supabase/env";
 
 const SUPPORT =
-  process.env.ACADEMY_SUPPORT_EMAIL?.trim() || "info@alphasolutions.software";
+  process.env.ACADEMY_SUPPORT_EMAIL?.trim() || "support@freight.alphasolutions.software";
 
 function site() {
   return getAppUrl().replace(/\/$/, "");

@@ -13,7 +13,7 @@ import {
 } from "@/lib/academy/pricing";
 
 const WHATSAPP = "https://wa.me/923494206922";
-const SUPPORT = "info@alphasolutions.software";
+const SUPPORT = "support@freight.alphasolutions.software";
 
 const bundleFeatures = [
   "All 12 Alpha Freight Network course modules",

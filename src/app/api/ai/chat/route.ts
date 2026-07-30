@@ -161,7 +161,7 @@ Be warm, concise, and professional. Ask clarifying questions when requirements a
 If they need a human, tell them a team member can join this same chat, or they can open a ticket from the Tickets tab.
 Prefer answers from the company knowledge base / SOPs below when relevant.
 Company: https://www.alphasolutions.software | Portal: https://portal.alphasolutions.software
-Contact: info@alphasolutions.software | WhatsApp +923494206922
+Contact: support@freight.alphasolutions.software | WhatsApp +923494206922
 
 Client projects:
 ${projectCtx}
