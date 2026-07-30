@@ -21,6 +21,7 @@ const links = [
     label: "Payments",
     short: "Pay",
     icon: GraduationCap,
+    iconKey: "pay",
     match: ["/admin/enrollments"],
   },
   {
@@ -28,6 +29,7 @@ const links = [
     label: "Live sessions",
     short: "Live",
     icon: Video,
+    iconKey: "live",
     match: ["/admin/live"],
   },
   {
@@ -35,6 +37,7 @@ const links = [
     label: "Student messages",
     short: "Chat",
     icon: MessageCircle,
+    iconKey: "chat",
     match: ["/admin/inbox"],
   },
   {
@@ -42,6 +45,7 @@ const links = [
     label: "AI assistant",
     short: "Assist",
     icon: Sparkles,
+    iconKey: "assist",
     match: ["/admin/assistant"],
   },
   {
@@ -49,6 +53,7 @@ const links = [
     label: "Assign quizzes",
     short: "Quiz",
     icon: ClipboardList,
+    iconKey: "quiz",
     match: ["/admin/quizzes"],
   },
   {
@@ -56,6 +61,7 @@ const links = [
     label: "Certificates",
     short: "Certs",
     icon: Award,
+    iconKey: "certs",
     match: ["/admin/certificates"],
   },
 ];
@@ -78,13 +84,12 @@ export default async function AdminLayout({
   const dockItems = links.map((item) => ({
     href: item.href,
     label: item.short,
-    icon: item.icon,
+    icon: item.iconKey,
     match: item.match,
   }));
 
   return (
     <div className="flex min-h-[100dvh] flex-col bg-[var(--color-bg)] text-[var(--color-text)]">
-      {/* Desktop / tablet top bar */}
       <header className="sticky top-0 z-30 hidden shrink-0 border-b border-[var(--color-border)] bg-[var(--color-bg)]/90 backdrop-blur-md md:block">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <div>
@@ -116,7 +121,6 @@ export default async function AdminLayout({
         </div>
       </header>
 
-      {/* Mobile top brand strip */}
       <header className="sticky top-0 z-30 shrink-0 border-b border-[var(--color-border)] bg-[var(--color-bg)]/92 backdrop-blur-md md:hidden">
         <div className="flex items-center justify-between gap-3 px-4 py-3">
           <div className="min-w-0">

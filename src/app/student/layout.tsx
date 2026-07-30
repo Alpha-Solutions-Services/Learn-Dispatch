@@ -19,31 +19,41 @@ const nav = [
   {
     href: "/student/dashboard",
     label: "Learn",
+    desktopLabel: "My learning",
     icon: LayoutDashboard,
+    iconKey: "learn",
     match: ["/student/dashboard", "/student/modules"],
   },
   {
     href: "/student/live",
     label: "Live",
+    desktopLabel: "Live sessions",
     icon: Video,
+    iconKey: "live",
     match: ["/student/live"],
   },
   {
     href: "/student/messages",
     label: "Chat",
+    desktopLabel: "Instructor chat",
     icon: MessageCircle,
+    iconKey: "chat",
     match: ["/student/messages"],
   },
   {
     href: "/student/assistant",
     label: "Assist",
+    desktopLabel: "AI assistant",
     icon: Sparkles,
+    iconKey: "assist",
     match: ["/student/assistant"],
   },
   {
     href: "/student/certificates",
     label: "Certs",
+    desktopLabel: "Certificates",
     icon: Award,
+    iconKey: "certs",
     match: ["/student/certificates"],
   },
 ] as const;
@@ -71,7 +81,7 @@ export default async function StudentLayout({
   const dockItems = nav.map((item) => ({
     href: hrefFor(item.href),
     label: item.label,
-    icon: item.icon,
+    icon: item.iconKey,
     match: [...item.match],
   }));
 
@@ -86,7 +96,6 @@ export default async function StudentLayout({
         }}
       />
 
-      {/* Desktop / tablet top bar */}
       <header className="sticky top-0 z-30 hidden shrink-0 border-b border-[var(--color-border)] bg-[var(--color-bg)]/90 backdrop-blur-md md:block">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
           <Link href="/student/dashboard" className="flex items-center gap-2.5">
@@ -108,15 +117,7 @@ export default async function StudentLayout({
                 className="inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-medium text-[var(--color-muted)] transition hover:bg-white/5 hover:text-[var(--color-text)]"
               >
                 <item.icon className="h-3.5 w-3.5" />
-                {item.label === "Learn"
-                  ? "My learning"
-                  : item.label === "Live"
-                    ? "Live sessions"
-                    : item.label === "Chat"
-                      ? "Instructor chat"
-                      : item.label === "Assist"
-                        ? "AI assistant"
-                        : "Certificates"}
+                {item.desktopLabel}
               </Link>
             ))}
           </nav>
@@ -131,7 +132,6 @@ export default async function StudentLayout({
         </div>
       </header>
 
-      {/* Mobile top brand strip */}
       <header className="sticky top-0 z-30 shrink-0 border-b border-[var(--color-border)] bg-[var(--color-bg)]/92 backdrop-blur-md md:hidden">
         <div className="flex items-center justify-between px-4 py-3">
           <Link href="/student/dashboard" className="flex items-center gap-2">
@@ -148,7 +148,6 @@ export default async function StudentLayout({
         </div>
       </header>
 
-      {/* Content — leave room for fixed bottom dock on mobile */}
       <div className="min-h-0 flex-1 pb-[calc(4.25rem+env(safe-area-inset-bottom,0px))] md:pb-0">
         {children}
       </div>
