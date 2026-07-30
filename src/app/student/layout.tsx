@@ -6,19 +6,47 @@ import {
   LayoutDashboard,
   MessageCircle,
   Sparkles,
+  Video,
 } from "lucide-react";
 import { getStudentPaidAccess, isPaidAccessActive } from "@/lib/academy/access";
 import { createClient } from "@/lib/supabase/server";
 import { LogoutButton } from "@/components/portal/LogoutButton";
+import { StudentMobileBottomNav } from "@/components/layout/StudentMobileBottomNav";
 
 export const dynamic = "force-dynamic";
 
 const nav = [
-  { href: "/student/dashboard", label: "Learn", icon: LayoutDashboard },
-  { href: "/student/messages", label: "Chat", icon: MessageCircle },
-  { href: "/student/assistant", label: "Assist", icon: Sparkles },
-  { href: "/student/certificates", label: "Certs", icon: Award },
-];
+  {
+    href: "/student/dashboard",
+    label: "Learn",
+    icon: LayoutDashboard,
+    match: ["/student/dashboard", "/student/modules"],
+  },
+  {
+    href: "/student/live",
+    label: "Live",
+    icon: Video,
+    match: ["/student/live"],
+  },
+  {
+    href: "/student/messages",
+    label: "Chat",
+    icon: MessageCircle,
+    match: ["/student/messages"],
+  },
+  {
+    href: "/student/assistant",
+    label: "Assist",
+    icon: Sparkles,
+    match: ["/student/assistant"],
+  },
+  {
+    href: "/student/certificates",
+    label: "Certs",
+    icon: Award,
+    match: ["/student/certificates"],
+  },
+] as const;
 
 export default async function StudentLayout({
   children,
@@ -35,11 +63,20 @@ export default async function StudentLayout({
   const paid = isPaidAccessActive(access);
 
   function hrefFor(itemHref: string) {
-    return paid || itemHref === "/student/dashboard" ? itemHref : "/enroll?reason=payment";
+    return paid || itemHref === "/student/dashboard"
+      ? itemHref
+      : "/enroll?reason=payment";
   }
 
+  const dockItems = nav.map((item) => ({
+    href: hrefFor(item.href),
+    label: item.label,
+    icon: item.icon,
+    match: [...item.match],
+  }));
+
   return (
-    <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)]">
+    <div className="flex min-h-[100dvh] flex-col bg-[var(--color-bg)] text-[var(--color-text)]">
       <div
         aria-hidden
         className="pointer-events-none fixed inset-0 -z-10"
@@ -50,7 +87,7 @@ export default async function StudentLayout({
       />
 
       {/* Desktop / tablet top bar */}
-      <header className="sticky top-0 z-30 hidden border-b border-[var(--color-border)] bg-[var(--color-bg)]/90 backdrop-blur-md md:block">
+      <header className="sticky top-0 z-30 hidden shrink-0 border-b border-[var(--color-border)] bg-[var(--color-bg)]/90 backdrop-blur-md md:block">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
           <Link href="/student/dashboard" className="flex items-center gap-2.5">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--color-accent)]/15 ring-1 ring-[var(--color-accent)]/30">
@@ -73,11 +110,13 @@ export default async function StudentLayout({
                 <item.icon className="h-3.5 w-3.5" />
                 {item.label === "Learn"
                   ? "My learning"
-                  : item.label === "Chat"
-                    ? "Instructor chat"
-                    : item.label === "Assist"
-                      ? "AI assistant"
-                      : "Certificates"}
+                  : item.label === "Live"
+                    ? "Live sessions"
+                    : item.label === "Chat"
+                      ? "Instructor chat"
+                      : item.label === "Assist"
+                        ? "AI assistant"
+                        : "Certificates"}
               </Link>
             ))}
           </nav>
@@ -93,13 +132,15 @@ export default async function StudentLayout({
       </header>
 
       {/* Mobile top brand strip */}
-      <header className="sticky top-0 z-30 border-b border-[var(--color-border)] bg-[var(--color-bg)]/92 backdrop-blur-md md:hidden">
+      <header className="sticky top-0 z-30 shrink-0 border-b border-[var(--color-border)] bg-[var(--color-bg)]/92 backdrop-blur-md md:hidden">
         <div className="flex items-center justify-between px-4 py-3">
           <Link href="/student/dashboard" className="flex items-center gap-2">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--color-accent)]/15 ring-1 ring-[var(--color-accent)]/25">
               <BookOpen className="h-4 w-4 text-[var(--color-accent)]" />
             </span>
-            <span className="text-sm font-semibold tracking-wide">Learn Dispatch</span>
+            <span className="text-sm font-semibold tracking-wide">
+              Learn Dispatch
+            </span>
           </Link>
           <div className="shrink-0 [&_button]:w-auto [&_button]:rounded-lg [&_button]:px-2.5 [&_button]:py-1.5 [&_button]:text-[11px]">
             <LogoutButton redirectTo="/login" />
@@ -107,29 +148,12 @@ export default async function StudentLayout({
         </div>
       </header>
 
-      <div className="pb-24 md:pb-0">{children}</div>
+      {/* Content — leave room for fixed bottom dock on mobile */}
+      <div className="min-h-0 flex-1 pb-[calc(4.25rem+env(safe-area-inset-bottom,0px))] md:pb-0">
+        {children}
+      </div>
 
-      {/* Premium mobile bottom dock */}
-      <nav
-        className="fixed inset-x-0 bottom-0 z-40 md:hidden"
-        style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}
-      >
-        <div className="mx-3 mb-2 rounded-2xl border border-[var(--color-border)] bg-[#0a101c]/95 shadow-[0_-8px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl">
-          <ul className="grid grid-cols-4 gap-0.5 p-1.5">
-            {nav.map((item) => (
-              <li key={item.href}>
-                <Link
-                  href={hrefFor(item.href)}
-                  className="flex flex-col items-center gap-1 rounded-xl px-1 py-2.5 text-[var(--color-muted)] transition active:bg-[var(--color-accent)]/15 active:text-[var(--color-accent)]"
-                >
-                  <item.icon className="h-5 w-5" strokeWidth={1.75} />
-                  <span className="text-[10px] font-medium tracking-wide">{item.label}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </nav>
+      <StudentMobileBottomNav items={dockItems} />
     </div>
   );
 }

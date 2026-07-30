@@ -6,19 +6,58 @@ import {
   GraduationCap,
   MessageCircle,
   Sparkles,
+  Video,
 } from "lucide-react";
 import { canManageAcademy } from "@/lib/academy/staff-auth";
 import { createClient } from "@/lib/supabase/server";
 import { LogoutButton } from "@/components/portal/LogoutButton";
+import { StudentMobileBottomNav } from "@/components/layout/StudentMobileBottomNav";
 
 export const dynamic = "force-dynamic";
 
 const links = [
-  { href: "/admin/enrollments", label: "Payments", short: "Pay", icon: GraduationCap },
-  { href: "/admin/inbox", label: "Student messages", short: "Chat", icon: MessageCircle },
-  { href: "/admin/assistant", label: "AI assistant", short: "Assist", icon: Sparkles },
-  { href: "/admin/quizzes", label: "Assign quizzes", short: "Quiz", icon: ClipboardList },
-  { href: "/admin/certificates", label: "Certificates", short: "Certs", icon: Award },
+  {
+    href: "/admin/enrollments",
+    label: "Payments",
+    short: "Pay",
+    icon: GraduationCap,
+    match: ["/admin/enrollments"],
+  },
+  {
+    href: "/admin/live",
+    label: "Live sessions",
+    short: "Live",
+    icon: Video,
+    match: ["/admin/live"],
+  },
+  {
+    href: "/admin/inbox",
+    label: "Student messages",
+    short: "Chat",
+    icon: MessageCircle,
+    match: ["/admin/inbox"],
+  },
+  {
+    href: "/admin/assistant",
+    label: "AI assistant",
+    short: "Assist",
+    icon: Sparkles,
+    match: ["/admin/assistant"],
+  },
+  {
+    href: "/admin/quizzes",
+    label: "Assign quizzes",
+    short: "Quiz",
+    icon: ClipboardList,
+    match: ["/admin/quizzes"],
+  },
+  {
+    href: "/admin/certificates",
+    label: "Certificates",
+    short: "Certs",
+    icon: Award,
+    match: ["/admin/certificates"],
+  },
 ];
 
 export default async function AdminLayout({
@@ -32,18 +71,29 @@ export default async function AdminLayout({
   } = sb ? await sb.auth.getUser() : { data: { user: null } };
 
   if (!user?.id) redirect("/login?role=instructor");
-  if (!(await canManageAcademy(user))) redirect("/login?role=instructor&error=unauthorized");
+  if (!(await canManageAcademy(user))) {
+    redirect("/login?role=instructor&error=unauthorized");
+  }
+
+  const dockItems = links.map((item) => ({
+    href: item.href,
+    label: item.short,
+    icon: item.icon,
+    match: item.match,
+  }));
 
   return (
-    <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)]">
+    <div className="flex min-h-[100dvh] flex-col bg-[var(--color-bg)] text-[var(--color-text)]">
       {/* Desktop / tablet top bar */}
-      <header className="sticky top-0 z-30 hidden border-b border-[var(--color-border)] bg-[var(--color-bg)]/90 backdrop-blur-md md:block">
+      <header className="sticky top-0 z-30 hidden shrink-0 border-b border-[var(--color-border)] bg-[var(--color-bg)]/90 backdrop-blur-md md:block">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-accent)]">
               Learn Dispatch
             </p>
-            <h1 className="text-sm font-semibold text-[var(--color-text)]">Instructor desk</h1>
+            <h1 className="text-sm font-semibold text-[var(--color-text)]">
+              Instructor desk
+            </h1>
           </div>
           <div className="flex flex-wrap items-center gap-1 text-xs">
             {links.map((l) => (
@@ -67,7 +117,7 @@ export default async function AdminLayout({
       </header>
 
       {/* Mobile top brand strip */}
-      <header className="sticky top-0 z-30 border-b border-[var(--color-border)] bg-[var(--color-bg)]/92 backdrop-blur-md md:hidden">
+      <header className="sticky top-0 z-30 shrink-0 border-b border-[var(--color-border)] bg-[var(--color-bg)]/92 backdrop-blur-md md:hidden">
         <div className="flex items-center justify-between gap-3 px-4 py-3">
           <div className="min-w-0">
             <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--color-accent)]">
@@ -81,29 +131,11 @@ export default async function AdminLayout({
         </div>
       </header>
 
-      <div className="pb-24 md:pb-0">{children}</div>
+      <div className="min-h-0 flex-1 pb-[calc(4.25rem+env(safe-area-inset-bottom,0px))] md:pb-0">
+        {children}
+      </div>
 
-      {/* Same premium mobile bottom dock as student studio */}
-      <nav
-        className="fixed inset-x-0 bottom-0 z-40 md:hidden"
-        style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}
-      >
-        <div className="mx-2 mb-2 rounded-2xl border border-[var(--color-border)] bg-[#0a101c]/95 shadow-[0_-8px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl">
-          <ul className="grid grid-cols-5 gap-0.5 p-1.5">
-            {links.map((item) => (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  className="flex flex-col items-center gap-1 rounded-xl px-0.5 py-2.5 text-[var(--color-muted)] transition active:bg-[var(--color-accent)]/15 active:text-[var(--color-accent)]"
-                >
-                  <item.icon className="h-5 w-5" strokeWidth={1.75} />
-                  <span className="text-[9px] font-medium tracking-wide">{item.short}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </nav>
+      <StudentMobileBottomNav items={dockItems} />
     </div>
   );
 }
