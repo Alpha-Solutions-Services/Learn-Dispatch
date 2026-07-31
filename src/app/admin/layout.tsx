@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
   Award,
+  BarChart3,
   ClipboardList,
   GraduationCap,
   MessageCircle,
@@ -47,6 +48,14 @@ const links = [
     icon: Sparkles,
     iconKey: "assist",
     match: ["/admin/assistant"],
+  },
+  {
+    href: "/admin/progress",
+    label: "Progress",
+    short: "Prog",
+    icon: BarChart3,
+    iconKey: "progress",
+    match: ["/admin/progress"],
   },
   {
     href: "/admin/quizzes",

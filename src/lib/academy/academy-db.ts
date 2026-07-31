@@ -304,6 +304,32 @@ export type QuizQuestionPublic = {
   order_index: number;
 };
 
+export type QuizReviewItem = {
+  id: string;
+  question: string;
+  options: string[];
+  selectedIndex: number | null;
+  correctIndex: number;
+  isCorrect: boolean;
+};
+
+export type QuizAccess =
+  | { ok: true; reason: "first" | "in_progress" | "retake"; assignmentId: string | null }
+  | {
+      ok: false;
+      reason: "passed" | "locked" | "misconfigured";
+      message: string;
+      lastScore: number | null;
+      lastPassed: boolean | null;
+    };
+
+type StoredAttemptQuestion = {
+  id: string;
+  question: string;
+  options: string[];
+  correct_index: number;
+};
+
 export async function listQuizQuestionsPublic(
   moduleId: string,
 ): Promise<QuizQuestionPublic[]> {
@@ -329,6 +355,395 @@ export async function listQuizQuestionsPublic(
   }));
 }
 
+export async function getQuizAccess(
+  studentId: string,
+  moduleId: string,
+): Promise<QuizAccess> {
+  const admin = getServiceRoleClient();
+  if (!admin) {
+    return {
+      ok: false,
+      reason: "misconfigured",
+      message: "Quiz service unavailable",
+      lastScore: null,
+      lastPassed: null,
+    };
+  }
+
+  const { data: open } = await admin
+    .from("quiz_attempts")
+    .select("id")
+    .eq("student_id", studentId)
+    .eq("module_id", moduleId)
+    .eq("status", "in_progress")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (open?.id) {
+    return { ok: true, reason: "in_progress", assignmentId: null };
+  }
+
+  const { data: last } = await admin
+    .from("quiz_attempts")
+    .select("score,passed,status")
+    .eq("student_id", studentId)
+    .eq("module_id", moduleId)
+    .eq("status", "submitted")
+    .order("submitted_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!last) {
+    const { data: assignment } = await admin
+      .from("quiz_assignments")
+      .select("id,consumed_at")
+      .eq("student_id", studentId)
+      .eq("module_id", moduleId)
+      .maybeSingle();
+    return {
+      ok: true,
+      reason: "first",
+      assignmentId:
+        assignment?.id && !assignment.consumed_at
+          ? (assignment.id as string)
+          : null,
+    };
+  }
+
+  if (last.passed) {
+    return {
+      ok: false,
+      reason: "passed",
+      message: "You already passed this module quiz.",
+      lastScore: (last.score as number) ?? null,
+      lastPassed: true,
+    };
+  }
+
+  const { data: assignment } = await admin
+    .from("quiz_assignments")
+    .select("id,consumed_at")
+    .eq("student_id", studentId)
+    .eq("module_id", moduleId)
+    .maybeSingle();
+
+  if (assignment?.id && !assignment.consumed_at) {
+    return {
+      ok: true,
+      reason: "retake",
+      assignmentId: assignment.id as string,
+    };
+  }
+
+  return {
+    ok: false,
+    reason: "locked",
+    message:
+      "Score below pass mark. Ask your instructor to assign a retake for a new AI quiz.",
+    lastScore: (last.score as number) ?? null,
+    lastPassed: false,
+  };
+}
+
+export async function getOpenQuizAttempt(
+  studentId: string,
+  moduleId: string,
+): Promise<{ id: string; questions: StoredAttemptQuestion[] } | null> {
+  const admin = getServiceRoleClient();
+  if (!admin) return null;
+
+  const { data, error } = await admin
+    .from("quiz_attempts")
+    .select("id,questions")
+    .eq("student_id", studentId)
+    .eq("module_id", moduleId)
+    .eq("status", "in_progress")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) {
+    if (error) console.error("[quiz-attempts] open fetch failed:", error);
+    return null;
+  }
+
+  const questions = Array.isArray(data.questions)
+    ? (data.questions as StoredAttemptQuestion[])
+    : [];
+  return { id: data.id as string, questions };
+}
+
+export async function createAiQuizAttempt(params: {
+  studentId: string;
+  moduleId: string;
+  assignmentId: string | null;
+  questions: StoredAttemptQuestion[];
+}): Promise<{ id: string; questions: StoredAttemptQuestion[] } | null> {
+  const admin = getServiceRoleClient();
+  if (!admin) return null;
+
+  const { data, error } = await admin
+    .from("quiz_attempts")
+    .insert({
+      student_id: params.studentId,
+      module_id: params.moduleId,
+      assignment_id: params.assignmentId,
+      questions: params.questions,
+      status: "in_progress",
+    })
+    .select("id,questions")
+    .single();
+
+  if (error || !data) {
+    console.error("[quiz-attempts] create failed:", error);
+    return null;
+  }
+
+  return {
+    id: data.id as string,
+    questions: Array.isArray(data.questions)
+      ? (data.questions as StoredAttemptQuestion[])
+      : params.questions,
+  };
+}
+
+export async function submitQuizAttempt(params: {
+  studentId: string;
+  attemptId: string;
+  answers: Record<string, number>;
+}): Promise<{
+  score: number;
+  passed: boolean;
+  total: number;
+  correct: number;
+  moduleId: string;
+  review: QuizReviewItem[];
+} | null> {
+  const admin = getServiceRoleClient();
+  if (!admin) return null;
+
+  const { data: attempt, error } = await admin
+    .from("quiz_attempts")
+    .select("id,student_id,module_id,questions,status,assignment_id")
+    .eq("id", params.attemptId)
+    .eq("student_id", params.studentId)
+    .maybeSingle();
+
+  if (error || !attempt) {
+    if (error) console.error("[quiz-attempts] submit fetch failed:", error);
+    return null;
+  }
+  if (attempt.status !== "in_progress") {
+    return null;
+  }
+
+  const questions = Array.isArray(attempt.questions)
+    ? (attempt.questions as StoredAttemptQuestion[])
+    : [];
+  if (questions.length === 0) return null;
+
+  let correct = 0;
+  const review: QuizReviewItem[] = questions.map((q) => {
+    const selected =
+      typeof params.answers[q.id] === "number" ? params.answers[q.id] : null;
+    const isCorrect = selected === q.correct_index;
+    if (isCorrect) correct += 1;
+    return {
+      id: q.id,
+      question: q.question,
+      options: q.options,
+      selectedIndex: selected,
+      correctIndex: q.correct_index,
+      isCorrect,
+    };
+  });
+
+  const total = questions.length;
+  const score = Math.round((correct / total) * 100);
+  const passed = score >= 70;
+  const now = new Date().toISOString();
+  const moduleId = attempt.module_id as string;
+
+  const { error: upAttempt } = await admin
+    .from("quiz_attempts")
+    .update({
+      answers: params.answers,
+      score,
+      passed,
+      status: "submitted",
+      submitted_at: now,
+    })
+    .eq("id", params.attemptId)
+    .eq("student_id", params.studentId);
+
+  if (upAttempt) {
+    console.error("[quiz-attempts] submit update failed:", upAttempt);
+    return null;
+  }
+
+  const { error: upProg } = await admin.from("academy_progress").upsert(
+    {
+      student_id: params.studentId,
+      module_id: moduleId,
+      status: passed ? "completed" : "in_progress",
+      quiz_score: score,
+      completed_at: passed ? now : null,
+      updated_at: now,
+    },
+    { onConflict: "student_id,module_id" },
+  );
+
+  if (upProg) {
+    console.error("[quiz] progress upsert failed:", upProg);
+    return null;
+  }
+
+  if (attempt.assignment_id) {
+    await admin
+      .from("quiz_assignments")
+      .update({ consumed_at: now })
+      .eq("id", attempt.assignment_id as string);
+  } else {
+    // First free attempt that failed: mark any existing assignment consumed
+    // so a fresh instructor assign is required for retake.
+    await admin
+      .from("quiz_assignments")
+      .update({ consumed_at: now })
+      .eq("student_id", params.studentId)
+      .eq("module_id", moduleId)
+      .is("consumed_at", null);
+  }
+
+  return { score, passed, total, correct, moduleId, review };
+}
+
+export async function getLatestSubmittedAttempt(
+  studentId: string,
+  moduleId: string,
+): Promise<{
+  score: number | null;
+  passed: boolean | null;
+  review: QuizReviewItem[] | null;
+} | null> {
+  const admin = getServiceRoleClient();
+  if (!admin) return null;
+
+  const { data } = await admin
+    .from("quiz_attempts")
+    .select("score,passed,questions,answers")
+    .eq("student_id", studentId)
+    .eq("module_id", moduleId)
+    .eq("status", "submitted")
+    .order("submitted_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!data) return null;
+
+  const questions = Array.isArray(data.questions)
+    ? (data.questions as StoredAttemptQuestion[])
+    : [];
+  const answers =
+    data.answers && typeof data.answers === "object"
+      ? (data.answers as Record<string, number>)
+      : {};
+
+  const review: QuizReviewItem[] = questions.map((q) => {
+    const selected = typeof answers[q.id] === "number" ? answers[q.id] : null;
+    return {
+      id: q.id,
+      question: q.question,
+      options: q.options,
+      selectedIndex: selected,
+      correctIndex: q.correct_index,
+      isCorrect: selected === q.correct_index,
+    };
+  });
+
+  return {
+    score: (data.score as number) ?? null,
+    passed: (data.passed as boolean) ?? null,
+    review,
+  };
+}
+
+export type StudentProgressReportRow = {
+  studentId: string;
+  fullName: string;
+  email: string;
+  batchCode: string | null;
+  modules: {
+    moduleId: string;
+    title: string;
+    sortOrder: number;
+    status: string | null;
+    quizScore: number | null;
+    weak: boolean;
+  }[];
+  weakModules: string[];
+  completedCount: number;
+};
+
+export async function buildStudentProgressReport(): Promise<StudentProgressReportRow[]> {
+  const admin = getServiceRoleClient();
+  if (!admin) return [];
+
+  const [students, modules] = await Promise.all([
+    listAcademyStudents({ status: "paid" }),
+    listPublishedModules(),
+  ]);
+
+  if (!students.length || !modules.length) return [];
+
+  const { data: progress } = await admin
+    .from("academy_progress")
+    .select("student_id,module_id,status,quiz_score")
+    .in(
+      "student_id",
+      students.map((s) => s.id),
+    );
+
+  const progMap = new Map<string, { status: string; quiz_score: number | null }>();
+  for (const row of progress ?? []) {
+    progMap.set(`${row.student_id}:${row.module_id}`, {
+      status: (row.status as string) ?? "not_started",
+      quiz_score:
+        typeof row.quiz_score === "number" ? (row.quiz_score as number) : null,
+    });
+  }
+
+  return students.map((s) => {
+    const modulesOut = modules.map((m) => {
+      const mid = m.id as string;
+      const p = progMap.get(`${s.id}:${mid}`);
+      const quizScore = p?.quiz_score ?? null;
+      const status = p?.status ?? null;
+      const completed = status === "completed";
+      const weak = !completed && quizScore !== null && quizScore < 70;
+      return {
+        moduleId: mid,
+        title: (m.title as string) ?? "",
+        sortOrder: (m.sort_order as number) ?? 0,
+        status,
+        quizScore,
+        weak,
+      };
+    });
+    const weakModules = modulesOut.filter((m) => m.weak).map((m) => m.title);
+    return {
+      studentId: s.id,
+      fullName: s.fullName || s.email,
+      email: s.email,
+      batchCode: s.batchCode,
+      modules: modulesOut,
+      weakModules,
+      completedCount: modulesOut.filter((m) => m.status === "completed").length,
+    };
+  });
+}
+
+/** @deprecated Prefer submitQuizAttempt for AI quizzes. */
 export async function gradeQuizSubmission(params: {
   studentId: string;
   moduleId: string;

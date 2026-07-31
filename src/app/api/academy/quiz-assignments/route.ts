@@ -28,7 +28,7 @@ export async function GET() {
 
   const { data } = await admin
     .from("quiz_assignments")
-    .select("id,student_id,module_id,note,due_at,created_at")
+    .select("id,student_id,module_id,note,due_at,created_at,consumed_at")
     .order("created_at", { ascending: false })
     .limit(100);
 
@@ -48,6 +48,20 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = schema.parse(await req.json());
+
+    // Abandon any stale in-progress attempt so retake generates a fresh AI set.
+    await admin
+      .from("quiz_attempts")
+      .update({
+        status: "submitted",
+        submitted_at: new Date().toISOString(),
+        score: null,
+        passed: false,
+      })
+      .eq("student_id", body.studentId)
+      .eq("module_id", body.moduleId)
+      .eq("status", "in_progress");
+
     const { data, error } = await admin
       .from("quiz_assignments")
       .upsert(
@@ -57,10 +71,12 @@ export async function POST(req: NextRequest) {
           assigned_by: auth.user.id,
           note: body.note ?? null,
           due_at: body.dueAt ?? null,
+          consumed_at: null,
+          created_at: new Date().toISOString(),
         },
         { onConflict: "student_id,module_id" },
       )
-      .select("id,student_id,module_id,note,due_at,created_at")
+      .select("id,student_id,module_id,note,due_at,created_at,consumed_at")
       .single();
 
     if (error) {

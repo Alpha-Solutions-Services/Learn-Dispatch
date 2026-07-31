@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Award,
+  BarChart3,
   ClipboardList,
   GraduationCap,
   LayoutDashboard,
@@ -22,6 +23,7 @@ const ICONS: Record<string, LucideIcon> = {
   certs: Award,
   pay: GraduationCap,
   quiz: ClipboardList,
+  progress: BarChart3,
 };
 
 export type StudentDockItem = {
