@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
     if (!staff.ok && cert.student_id !== user.id) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-    const html = certificateHtml(
+    const html = await certificateHtml(
       cert as Parameters<typeof certificateHtml>[0],
       { autoPrint: print },
     );

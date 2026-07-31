@@ -1,4 +1,5 @@
 import { createHash } from "crypto";
+import QRCode from "qrcode";
 import { COURSE } from "@/lib/course/curriculum";
 import { getAppUrl } from "@/lib/supabase/env";
 
@@ -8,6 +9,13 @@ function escapeHtml(s: string) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+/** Stable timestamp for hashing — Postgres/Supabase return formats differ from Date.toISOString(). */
+export function normalizeCertIssuedAt(issuedAt: string): string {
+  const d = new Date(issuedAt);
+  if (Number.isNaN(d.getTime())) return issuedAt.trim();
+  return d.toISOString();
 }
 
 export function computeCertificateHash(input: {
@@ -22,11 +30,11 @@ export function computeCertificateHash(input: {
     process.env.CRON_SECRET?.trim() ||
     "learn-dispatch-afn-cert";
   const payload = [
-    input.certificate_no,
+    input.certificate_no.trim().toUpperCase(),
     input.student_email.trim().toLowerCase(),
     input.student_name.trim(),
-    String(input.modules_completed),
-    input.issued_at,
+    String(Number(input.modules_completed) || 0),
+    normalizeCertIssuedAt(input.issued_at),
   ].join("|");
   return createHash("sha256")
     .update(`${secret}:${payload}`)
@@ -35,7 +43,7 @@ export function computeCertificateHash(input: {
     .toUpperCase();
 }
 
-export function certificateHtml(
+export async function certificateHtml(
   row: {
     certificate_no: string;
     student_name: string;
@@ -51,7 +59,17 @@ export function certificateHtml(
   const logoUrl = `${base}/alpha-logo.png`;
   const signatureUrl = `${base}/signatures/author-signature.svg`;
   const verifyUrl = `${base}/verify/${encodeURIComponent(row.certificate_no)}`;
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=148x148&margin=8&bgcolor=0b1220&color=5bc8ff&data=${encodeURIComponent(verifyUrl)}`;
+  let qrUrl = "";
+  try {
+    qrUrl = await QRCode.toDataURL(verifyUrl, {
+      width: 148,
+      margin: 2,
+      color: { dark: "#5bc8ff", light: "#0b1220" },
+      errorCorrectionLevel: "M",
+    });
+  } catch {
+    qrUrl = "";
+  }
   const issued = new Date(row.issued_at).toLocaleDateString("en-US", {
     year: "numeric",
     month: "long",
@@ -75,6 +93,9 @@ export function certificateHtml(
   const autoPrint = opts?.autoPrint
     ? `<script>window.addEventListener('load',function(){setTimeout(function(){window.print()},400)});</script>`
     : "";
+  const qrBlock = qrUrl
+    ? `<img src="${qrUrl}" alt="Verification QR"/>`
+    : `<a href="${escapeHtml(verifyUrl)}" style="font-size:10px;color:#5bc8ff;word-break:break-all">${escapeHtml(verifyUrl)}</a>`;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -331,7 +352,7 @@ export function certificateHtml(
             <p class="role">Course Author · Instructor of Record</p>
           </div>
           <div class="qr-wrap">
-            <img src="${qrUrl}" alt="Verification QR"/>
+            ${qrBlock}
             <span>Scan to verify</span>
           </div>
           <div class="ids">
