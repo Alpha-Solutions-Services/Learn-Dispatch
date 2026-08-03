@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { BadgeCheck, Sparkles } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { isPaidAccessActive } from "@/lib/academy/paid-access";
 import {
   NAYAPAY,
   PLAN_PRICING,
@@ -74,11 +75,11 @@ export default function StudentEnroll({
 
         const { data: profile } = await sb
           .from("profiles")
-          .select("role, enrollment_status, enrollment_plan, full_name, whatsapp_phone")
+          .select("role, enrollment_status, paid_until, enrollment_plan, full_name, whatsapp_phone")
           .eq("id", u.id)
           .maybeSingle();
 
-        if (profile?.role === "student" && profile.enrollment_status === "paid") {
+        if (isPaidAccessActive(profile)) {
           router.replace("/student/dashboard?welcome=1");
           return;
         }

@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { isPaidAccessActive } from "@/lib/academy/paid-access";
 import { canManageAcademy } from "@/lib/academy/staff-auth";
 
 export const dynamic = "force-dynamic";
@@ -113,15 +114,15 @@ export async function GET(request: NextRequest) {
   if (!wantsInstructor) {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role, enrollment_status")
+      .select("role, enrollment_status, paid_until")
       .eq("id", user.id)
       .maybeSingle();
 
     if (profile?.role === "student") {
-      if (profile.enrollment_status === "paid") {
+      if (isPaidAccessActive(profile)) {
         dest = "/student/dashboard";
       } else {
-        // Unpaid / pending — continue payment, not marketing start or empty studio.
+        // Unpaid / pending / expired — continue payment, not marketing start or empty studio.
         dest = "/enroll?reason=payment";
       }
     } else if (await canManageAcademy(user)) {

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { isPaidAccessActive } from "@/lib/academy/paid-access";
 import { createClient } from "@/lib/supabase/client";
 
 function authErrorMessage(reason: string | null): string {
@@ -42,7 +43,7 @@ async function resolveAfterLogin(): Promise<string> {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role, enrollment_status")
+    .select("role, enrollment_status, paid_until")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -52,7 +53,7 @@ async function resolveAfterLogin(): Promise<string> {
     return "/admin/enrollments";
   }
   if (role === "student") {
-    return profile?.enrollment_status === "paid"
+    return isPaidAccessActive(profile)
       ? "/student/dashboard"
       : "/enroll?reason=payment";
   }

@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import { LoginForm } from "@/components/auth/LoginForm";
+import { isPaidAccessActive } from "@/lib/academy/paid-access";
 import { canManageAcademy } from "@/lib/academy/staff-auth";
 import { createClient } from "@/lib/supabase/server";
 
@@ -17,7 +18,7 @@ async function resolveDestination(user: User, wantsInstructor: boolean) {
 
   const { data: profile } = await sb
     .from("profiles")
-    .select("role, enrollment_status")
+    .select("role, enrollment_status, paid_until")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -28,7 +29,7 @@ async function resolveDestination(user: User, wantsInstructor: boolean) {
     if (wantsInstructor) {
       return "/login?role=instructor&error=unauthorized&reason=unauthorized_instructor";
     }
-    return profile.enrollment_status === "paid"
+    return isPaidAccessActive(profile)
       ? "/student/dashboard"
       : "/enroll?reason=payment";
   }

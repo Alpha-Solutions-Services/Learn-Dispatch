@@ -1,6 +1,7 @@
 import Groq from "groq-sdk";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { isPaidAccessActive } from "@/lib/academy/paid-access";
 import { canManageAcademy } from "@/lib/academy/staff-auth";
 import { checkAndIncrementRateLimit } from "@/lib/portal/rate-limit";
 import { getSessionUser } from "@/lib/portal/require-session";
@@ -47,7 +48,7 @@ export async function POST(req: NextRequest) {
 
   const { data: profile } = await service
     .from("profiles")
-    .select("role, full_name, enrollment_status, batch_code, enrollment_plan")
+    .select("role, full_name, enrollment_status, paid_until, batch_code, enrollment_plan")
     .eq("id", session.user.id)
     .maybeSingle();
 
@@ -62,6 +63,16 @@ export async function POST(req: NextRequest) {
   if (!isInstructor && profile?.role !== "student") {
     return NextResponse.json(
       { error: "Student account required for Study assistant" },
+      { status: 403 },
+    );
+  }
+
+  if (!isInstructor && !isPaidAccessActive(profile)) {
+    return NextResponse.json(
+      {
+        error:
+          "Active enrollment required. Complete payment to use Study assistant.",
+      },
       { status: 403 },
     );
   }
