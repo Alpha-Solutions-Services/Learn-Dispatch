@@ -60,34 +60,38 @@ export function StudentMobileBottomNav({
       }}
     >
       <ul
-        className={clsx(
-          "mx-auto grid max-w-lg gap-0 px-1 pt-1 pb-1",
-          items.length <= 4 && "grid-cols-4",
-          items.length === 5 && "grid-cols-5",
-          items.length >= 6 && "grid-cols-6",
-        )}
+        className="mx-auto flex w-full max-w-lg flex-nowrap items-stretch gap-0 px-0.5 pt-1 pb-1"
+        style={{ minHeight: "3.5rem" }}
       >
         {items.map((item) => {
           const active = isActive(pathname, item);
           const Icon = ICONS[item.icon] ?? LayoutDashboard;
           return (
-            <li key={item.href}>
+            <li key={item.href} className="min-w-0 flex-1">
               <Link
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={clsx(
-                  "flex flex-col items-center gap-1 rounded-xl px-0.5 py-2.5 transition",
+                  "flex h-full flex-col items-center justify-center gap-0.5 rounded-lg px-0 py-2 transition",
                   active
                     ? "text-[var(--color-accent)]"
                     : "text-[var(--color-muted)] active:bg-white/5",
                 )}
               >
                 <Icon
-                  className="h-5 w-5"
+                  className={clsx(
+                    "shrink-0",
+                    items.length >= 7 ? "h-4 w-4" : "h-5 w-5",
+                  )}
                   strokeWidth={active ? 2.25 : 1.75}
                   aria-hidden
                 />
-                <span className="text-[9px] font-medium tracking-wide sm:text-[10px]">
+                <span
+                  className={clsx(
+                    "max-w-full truncate text-center font-medium tracking-wide",
+                    items.length >= 7 ? "text-[8px]" : "text-[9px] sm:text-[10px]",
+                  )}
+                >
                   {item.label}
                 </span>
               </Link>
